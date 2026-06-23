@@ -1,0 +1,7 @@
+# Core (used by both CLI build pipeline and the HTTP server)
+openpyxl>=3.1
+PyYAML>=6.0
+
+# HTTP server (only needed for `uvicorn app.main:app`)
+fastapi>=0.110
+uvicorn[standard]>=0.29

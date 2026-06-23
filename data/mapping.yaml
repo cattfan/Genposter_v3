@@ -1,0 +1,156 @@
+# Genposter V3 - data mapping (single source of truth)
+# Read by services/data-api (Python) and apps/desktop.
+# Keeps Vietnamese display labels while code uses ASCII slugs.
+
+database: database/fnb_dalat.xlsx
+
+# Photo groups: slug -> display label + path under data/
+photos:
+  quan_an:      { label: "Quán ăn",       path: photos/quan_an }
+  cafe:         { label: "Quán Cafe",     path: photos/cafe }
+  homestay:     { label: "Homestay",      path: photos/homestay }
+  check_in:     { label: "Check In Free", path: photos/check_in }
+  khu_du_lich:  { label: "Khu Du Lịch",   path: photos/khu_du_lich }
+  dich_vu:      { label: "Dịch Vụ",       path: photos/dich_vu }
+  choi_dem:     { label: "Chơi đêm",      path: photos/choi_dem }
+  hoat_dong:    { label: "Hoạt động",     path: photos/hoat_dong }
+  hinh_nen:     { label: "Hình Nền",      path: photos/hinh_nen }
+
+# Reference template series (original flattened JPGs, for design reference)
+templates_ref:
+  cap_nhat_gia_ve:       { label: "CẬP NHẬT GIÁ VÉ DU LỊCH" }
+  goi_y_lich_trinh_4n3d: { label: "GỢI Ý LỊCH TRÌNH 4N3Đ" }
+  list_cafe_concept:     { label: "LIST QUÁN CAFE THEO CONCEPT" }
+  luu_y_di_da_lat:      { label: "LƯU Ý ĐI ĐÀ LẠT" }
+  to_do_list:           { label: "TO DO LIST DU LỊCH ĐÀ LẠT" }
+  dia_diem_must_go:     { label: "ĐỊA ĐIỂM MUST GO THÁNG 4 ĐÀ LẠT" }
+
+# Excel sheets -> photo group + canonical field map.
+# Canonical fields used by templates: name, address, price, price_pp, desc,
+# photo_key, plus sheet-specific extras. Values are the real column headers.
+sheets:
+  Quan_an:
+    label: "Quán ăn"
+    photos: quan_an
+    fields:
+      name: Ten_quan
+      model: Mo_hinh
+      address: Dia_chi
+      hours: Gio_mo_cua
+      style: Phong_cach
+      price: Gia
+      price_pp: Gia_dau_nguoi
+      direction: Huong_di
+      partner: Doi_tac
+      highlight: Mon_an_noi_bat
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Cafe:
+    label: "Quán Cafe"
+    photos: cafe
+    fields:
+      name: Ten_quan
+      address: Dia_chi
+      hours: Gio_mo_cua
+      style: Phong_cach
+      price: Gia
+      price_pp: Gia_dau_nguoi
+      time: Thoi_diem
+      direction: Huong_di
+      partner: Doi_tac
+      highlight: "MÓN ĂN NỔI BẬT"
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Homestay:
+    label: "Homestay"
+    photos: homestay
+    fields:
+      name: Ten_quan
+      address: Dia_chi
+      partner: Doi_tac
+      price: Gia
+      price_pp: Gia_dau_nguoi
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Check_in:
+    label: "Check In Free"
+    photos: check_in
+    fields:
+      name: Ten_quan
+      address: Dia_chi
+      price: Gia
+      price_pp: Gia_dau_nguoi
+      time: Thoi_diem
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Khu_du_lich:
+    label: "Khu Du Lịch"
+    photos: khu_du_lich
+    fields:
+      name: Ten_quan
+      address: Dia_chi
+      hours: Gio_mo_cua
+      price_pp: Gia_dau_nguoi
+      style: Phong_cach
+      direction: Huong_di
+      partner: Doi_tac
+      highlight: Noi_bat
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Dich_vu:
+    label: "Dịch Vụ"
+    photos: dich_vu
+    fields:
+      name: Ten_quan
+      service_type: Loai_dich_vu
+      address: Dia_chi
+      phone: SDT
+      partner: Doi_tac
+      price: Gia
+      price_pp: Gia_dau_nguoi
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Choi_đem:
+    label: "Chơi đêm"
+    photos: choi_dem
+    fields:
+      name: Ten_quan
+      service_type: Loai_dich_vu
+      address: Dia_chi
+      phone: SDT
+      partner: Doi_tac
+      price_pp: Gia_dau_nguoi
+      desc: Mo_ta
+      photo_key: Link_drive
+
+  Hoat_dong:
+    label: "Hoạt động"
+    photos: hoat_dong
+    fields:
+      name: Hoat_dong
+      desc: Mo_ta
+      price_pp: Gia_dau_nguoi
+      photo_key: Link_drive
+
+  Hinh_nen:
+    label: "Hình Nền"
+    photos: hinh_nen
+    fields:
+      photo_key: Link_drive
+
+  Luu_y:
+    label: "Lưu ý"
+    photos: null
+    fields:
+      category: Danh_muc
+      title: Tieu_de
+      desc: Giai_thich
+
+# Image file extensions considered valid when resolving photos.
+image_extensions: [".jpg", ".jpeg", ".png", ".webp"]

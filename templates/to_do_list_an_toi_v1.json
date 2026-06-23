@@ -1,0 +1,141 @@
+{
+  "id": "to_do_list_an_toi_v1",
+  "name": "TO DO LIST - table list",
+  "archetype": "table_list",
+  "width": 1080,
+  "height": 1350,
+  "background": "#faf8f6",
+  "layers": [
+    {
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 12,
+      "fill": "#ff6600"
+    },
+    {
+      "type": "text",
+      "x": 80,
+      "y": 40,
+      "width": 920,
+      "height": 36,
+      "text": "Trang {{page}}/{{pages}}",
+      "fontFamily": "Be Vietnam Pro",
+      "fontWeight": 600,
+      "fontSize": 26,
+      "fill": "#6b6660",
+      "align": "right"
+    },
+    {
+      "type": "text",
+      "x": 80,
+      "y": 92,
+      "width": 920,
+      "height": 88,
+      "text": "{{title}}",
+      "fontFamily": "Be Vietnam Pro",
+      "fontWeight": 700,
+      "fontSize": 64,
+      "fill": "#ff6600",
+      "align": "center",
+      "uppercase": true,
+      "autoFit": true
+    },
+    {
+      "type": "rect",
+      "x": 390,
+      "y": 196,
+      "width": 300,
+      "height": 6,
+      "radius": 3,
+      "fill": "#ffd1ad"
+    },
+    {
+      "type": "list",
+      "x": 80,
+      "y": 236,
+      "width": 920,
+      "rowHeight": 110,
+      "gap": 8,
+      "maxRows": 7,
+      "divider": { "color": "#ece7e2", "width": 2 },
+      "cells": [
+        {
+          "type": "rect",
+          "x": 0,
+          "y": 16,
+          "width": 64,
+          "height": 64,
+          "radius": 32,
+          "fill": "#fff3eb"
+        },
+        {
+          "type": "text",
+          "x": 0,
+          "y": 30,
+          "width": 64,
+          "height": 40,
+          "text": "{{n}}",
+          "fontFamily": "Montserrat",
+          "fontWeight": 800,
+          "fontSize": 30,
+          "fill": "#ff6600",
+          "align": "center"
+        },
+        {
+          "type": "text",
+          "x": 88,
+          "y": 14,
+          "width": 560,
+          "height": 44,
+          "text": "{{item.name}}",
+          "fontFamily": "Be Vietnam Pro",
+          "fontWeight": 700,
+          "fontSize": 34,
+          "fill": "#1f1d1b",
+          "autoFit": true
+        },
+        {
+          "type": "text",
+          "x": 88,
+          "y": 62,
+          "width": 560,
+          "height": 36,
+          "text": "{{item.address}}",
+          "fontFamily": "Be Vietnam Pro",
+          "fontWeight": 400,
+          "fontSize": 25,
+          "fill": "#6b6660",
+          "autoFit": true
+        },
+        {
+          "type": "text",
+          "x": 664,
+          "y": 32,
+          "width": 256,
+          "height": 60,
+          "text": "{{item.price}}",
+          "fontFamily": "Be Vietnam Pro",
+          "fontWeight": 700,
+          "fontSize": 28,
+          "fill": "#ff6600",
+          "align": "right",
+          "autoFit": true
+        }
+      ]
+    },
+    {
+      "type": "gallery",
+      "x": 80,
+      "y": 1066,
+      "width": 920,
+      "height": 244,
+      "columns": 2,
+      "rows": 1,
+      "gap": 16,
+      "radius": 18,
+      "fit": "cover"
+    }
+  ]
+}

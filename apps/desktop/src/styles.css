@@ -1,0 +1,253 @@
+:root {
+  --sidebar-w: 248px;
+  --header-h: 64px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Layout shell */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  background: var(--rv-surface);
+  border-right: 1px solid var(--rv-border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  gap: 6px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 18px;
+}
+.brand img {
+  height: 30px;
+}
+.brand .sub {
+  font-size: 12px;
+  color: var(--rv-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--rv-radius-md);
+  cursor: pointer;
+  color: var(--rv-ink);
+  font-weight: 600;
+  font-size: 14px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s ease;
+}
+.nav-item:hover {
+  background: var(--rv-orange-50);
+}
+.nav-item.active {
+  background: var(--rv-orange);
+  color: #fff;
+}
+.nav-item .ico {
+  font-size: 18px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar .spacer {
+  flex: 1;
+}
+.sidebar .foot {
+  font-size: 11px;
+  color: var(--rv-muted);
+  padding: 8px 10px;
+}
+
+/* Main area */
+.main {
+  overflow: auto;
+  padding: 28px 32px;
+}
+.page-title {
+  font-family: var(--rv-font-heading);
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+.page-sub {
+  color: var(--rv-muted);
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+/* Cards */
+.card {
+  background: var(--rv-surface);
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-lg);
+  padding: 18px;
+  box-shadow: var(--rv-shadow-sm);
+}
+.grid {
+  display: grid;
+  gap: 16px;
+}
+.grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--rv-font-body);
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: var(--rv-radius-md);
+  padding: 10px 18px;
+  border: 1px solid var(--rv-border);
+  background: var(--rv-surface);
+  color: var(--rv-ink);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.btn:hover {
+  border-color: var(--rv-orange);
+}
+.btn.primary {
+  background: var(--rv-orange);
+  border-color: var(--rv-orange);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--rv-orange-dark);
+  border-color: var(--rv-orange-dark);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Recipe list */
+.recipe {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--rv-border);
+  border-radius: var(--rv-radius-md);
+  cursor: pointer;
+  background: var(--rv-surface);
+}
+.recipe.active {
+  border-color: var(--rv-orange);
+  background: var(--rv-orange-50);
+}
+.recipe .name {
+  font-weight: 700;
+}
+.recipe .meta {
+  font-size: 12px;
+  color: var(--rv-muted);
+}
+
+.badge {
+  display: inline-block;
+  background: var(--rv-orange-50);
+  color: var(--rv-orange-dark);
+  border-radius: var(--rv-radius-pill);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.muted {
+  color: var(--rv-muted);
+}
+
+/* Progress */
+.progress {
+  height: 10px;
+  border-radius: var(--rv-radius-pill);
+  background: var(--rv-orange-100);
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--rv-orange);
+  transition: width 0.2s ease;
+}
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rv-border);
+  vertical-align: top;
+}
+table.data th {
+  color: var(--rv-muted);
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  background: var(--rv-surface);
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--rv-radius-md);
+  background: var(--rv-orange-50);
+}
+
+.banner {
+  padding: 12px 16px;
+  border-radius: var(--rv-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+.banner.warn {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+.banner.err {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}

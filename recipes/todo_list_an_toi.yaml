@@ -1,0 +1,21 @@
+# Batch preset: generates the "TO DO LIST - Ăn tối" carousel from the Quan_an sheet.
+name: "TO DO LIST - Ăn tối"
+template_id: to_do_list_an_toi_v1
+title: "TO DO LIST - ĂN TỐI"
+
+data:
+  sheet: Quan_an
+  filter:
+    Mo_hinh: "Ăn Tối"
+  items_per_slide: 7
+  limit: 21          # cap rows for a quick run; remove to render everything
+
+photos:
+  per_item: 1        # photos attached to each row item
+  per_slide: 2       # illustrative photos shown at the bottom of each slide
+
+output:
+  dir: output/to_do_list
+  format: jpg
+  quality: 90
+  naming: "{id}_{index:02d}.{ext}"
