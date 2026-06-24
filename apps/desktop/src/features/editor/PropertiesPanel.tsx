@@ -68,20 +68,37 @@ function IconBtn({
   );
 }
 
-export function PropertiesPanel({ ed }: { ed: EditorApi }) {
+function PanelShell({
+  embedded,
+  children,
+}: {
+  embedded?: boolean;
+  children: ReactNode;
+}) {
+  if (embedded) return children;
+  return <aside className="panel right">{children}</aside>;
+}
+
+export function PropertiesPanel({
+  ed,
+  embedded,
+}: {
+  ed: EditorApi;
+  embedded?: boolean;
+}) {
   void ed.tick; // re-render on changes
   const obj = ed.getActive();
 
   if (!obj) {
     return (
-      <aside className="panel right">
+      <PanelShell embedded={embedded}>
         <div className="empty-hint">
           Chọn một đối tượng trên canvas để chỉnh thuộc tính.
           <br />
           <br />
           Mẹo: Ctrl+D nhân bản, Delete để xóa, Ctrl+Z/Y hoàn tác.
         </div>
-      </aside>
+      </PanelShell>
     );
   }
 
@@ -94,7 +111,7 @@ export function PropertiesPanel({ ed }: { ed: EditorApi }) {
   const up = (p: Record<string, unknown>) => ed.updateActive(p);
 
   return (
-    <aside className="panel right">
+    <PanelShell embedded={embedded}>
       <Accordion
         multiple
         defaultValue={["geometry", "text", "shape", "stroke"]}
@@ -320,6 +337,6 @@ export function PropertiesPanel({ ed }: { ed: EditorApi }) {
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>
-    </aside>
+    </PanelShell>
   );
 }

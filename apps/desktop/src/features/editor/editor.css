@@ -69,6 +69,26 @@
   background: #fff;
 }
 
+.inspector-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+.inspector-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 300px;
+  z-index: 11;
+  background: #fff;
+  border-left: 1px solid var(--mantine-color-gray-3);
+  padding: 12px;
+  overflow-y: auto;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+}
+
 .empty-hint {
   color: var(--mantine-color-dimmed);
   font-size: 13px;

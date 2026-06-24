@@ -2,13 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import type { TemplateSet } from "@genposter/schema";
 
 import { ContextBar } from "./ContextBar.js";
+import { InspectorDrawer } from "./InspectorDrawer.js";
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip } from "./PageStrip.js";
-import { PropertiesPanel } from "./PropertiesPanel.js";
 import { RightRail } from "./RightRail.js";
 import { Toolbar } from "./Toolbar.js";
 import type { EditorApi } from "./useEditor.js";
 import "./editor.css";
+
+const INSPECTOR_KEY = "genposter.editor.inspectorOpen";
+
+function readInspectorOpen(): boolean {
+  try {
+    return localStorage.getItem(INSPECTOR_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 export function EditorTab({
   ed,
@@ -38,7 +48,15 @@ export function EditorTab({
   onReorderPages: (from: number, to: number) => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(readInspectorOpen);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INSPECTOR_KEY, String(inspectorOpen));
+    } catch {
+      /* ignore */
+    }
+  }, [inspectorOpen]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -74,7 +92,11 @@ export function EditorTab({
               <canvas ref={ed.canvasElRef} />
             </div>
           </div>
-          {inspectorOpen && <PropertiesPanel ed={ed} />}
+          <InspectorDrawer
+            ed={ed}
+            opened={inspectorOpen}
+            onClose={() => setInspectorOpen(false)}
+          />
         </div>
         <RightRail active={inspectorOpen} onToggle={() => setInspectorOpen((o) => !o)} />
       </div>
