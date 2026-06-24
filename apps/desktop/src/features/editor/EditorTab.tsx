@@ -7,7 +7,7 @@ import { InspectorDrawer } from "./InspectorDrawer.js";
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip } from "./PageStrip.js";
 import { RightRail } from "./RightRail.js";
-import { Toolbar } from "./Toolbar.js";
+import { Toolbar, type SaveStatus } from "./Toolbar.js";
 import type { EditorApi } from "./useEditor.js";
 import "./editor.css";
 
@@ -25,10 +25,11 @@ export function EditorTab({
   ed,
   set,
   pageIndex,
-  saving,
+  saveStatus,
   onBack,
-  onSave,
+  onRetrySave,
   onRenameSet,
+  onNameBlur,
   onSelectPage,
   onAddPage,
   onDuplicatePage,
@@ -38,10 +39,11 @@ export function EditorTab({
   ed: EditorApi;
   set: TemplateSet | null;
   pageIndex: number;
-  saving: boolean;
+  saveStatus: SaveStatus;
   onBack: () => void;
-  onSave: () => void;
+  onRetrySave: () => void;
   onRenameSet: (name: string) => void;
+  onNameBlur: () => void;
   onSelectPage: (i: number) => void;
   onAddPage: () => void;
   onDuplicatePage: (i: number) => void;
@@ -84,9 +86,10 @@ export function EditorTab({
         ed={ed}
         name={set?.name ?? ""}
         onName={onRenameSet}
+        onNameBlur={onNameBlur}
         onBack={onBack}
-        onSave={onSave}
-        saving={saving}
+        saveStatus={saveStatus}
+        onRetrySave={onRetrySave}
         pageLabel={pageLabel}
       />
       <div className="editor-body">

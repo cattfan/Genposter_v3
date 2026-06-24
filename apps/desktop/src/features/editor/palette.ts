@@ -17,6 +17,51 @@ export const PALETTE = [
   "#fde68a",
 ];
 
+/** Màu thương hiệu — swatch nhanh tab Nền */
+export const BRAND_COLORS: { label: string; value: string }[] = [
+  { label: "Cam Riviu", value: "#ff6600" },
+  { label: "Cam đậm", value: "#e65c00" },
+  { label: "Kem", value: "#fff3eb" },
+  { label: "Đen", value: "#1f1d1b" },
+  { label: "Trắng", value: "#ffffff" },
+];
+
+export interface TextStylePreset {
+  label: string;
+  text: string;
+  fontSize: number;
+  fontWeight?: string;
+  fill?: string;
+  width?: number;
+}
+
+export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
+  {
+    label: "Caption",
+    text: "Mô tả ngắn",
+    fontSize: 28,
+    fontWeight: "400",
+    fill: "#6b6660",
+    width: 520,
+  },
+  {
+    label: "Giá",
+    text: "99.000đ",
+    fontSize: 56,
+    fontWeight: "700",
+    fill: "#ff6600",
+    width: 400,
+  },
+  {
+    label: "Nhãn",
+    text: "HOT",
+    fontSize: 32,
+    fontWeight: "800",
+    fill: "#ffffff",
+    width: 160,
+  },
+];
+
 export interface SlotDef {
   bind: string;
   label: string;

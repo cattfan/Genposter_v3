@@ -4,15 +4,18 @@ import {
   Button,
   Divider,
   Group,
+  Loader,
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
   IconArrowLeft,
-  IconDeviceFloppy,
+  IconCheck,
+  IconRefresh,
   IconZoomIn,
   IconZoomOut,
   IconZoomReset,
@@ -20,21 +23,69 @@ import {
 
 import type { EditorApi } from "./useEditor.js";
 
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+function SaveIndicator({
+  status,
+  onRetry,
+}: {
+  status: SaveStatus;
+  onRetry: () => void;
+}) {
+  if (status === "saving") {
+    return (
+      <Group gap={6} wrap="nowrap">
+        <Loader size={16} color="dimmed" />
+        <Text size="sm" c="dimmed">
+          Đang lưu…
+        </Text>
+      </Group>
+    );
+  }
+  if (status === "error") {
+    return (
+      <Tooltip label="Bấm để thử lưu lại" withArrow>
+        <UnstyledButton onClick={onRetry}>
+          <Group gap={6} wrap="nowrap">
+            <IconRefresh size={16} color="var(--mantine-color-red-6)" />
+            <Text size="sm" c="red">
+              Lỗi lưu
+            </Text>
+          </Group>
+        </UnstyledButton>
+      </Tooltip>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <Group gap={6} wrap="nowrap">
+        <IconCheck size={16} color="var(--mantine-color-teal-6)" />
+        <Text size="sm" c="dimmed">
+          Đã lưu
+        </Text>
+      </Group>
+    );
+  }
+  return null;
+}
+
 export function Toolbar({
   ed,
   name,
   onName,
+  onNameBlur,
   onBack,
-  onSave,
-  saving,
+  saveStatus,
+  onRetrySave,
   pageLabel,
 }: {
   ed: EditorApi;
   name: string;
   onName: (v: string) => void;
+  onNameBlur: () => void;
   onBack: () => void;
-  onSave: () => void;
-  saving: boolean;
+  saveStatus: SaveStatus;
+  onRetrySave: () => void;
   pageLabel: string;
 }) {
   return (
@@ -46,15 +97,14 @@ export function Toolbar({
       <TextInput
         value={name}
         onChange={(e) => onName(e.currentTarget.value)}
+        onBlur={onNameBlur}
         placeholder="Tên mẫu…"
         w={200}
         variant="filled"
         styles={{ input: { fontWeight: 700 } }}
       />
 
-      <Button leftSection={<IconDeviceFloppy size={18} />} loading={saving} onClick={onSave}>
-        Lưu mẫu
-      </Button>
+      <SaveIndicator status={saveStatus} onRetry={onRetrySave} />
 
       <Divider orientation="vertical" />
 

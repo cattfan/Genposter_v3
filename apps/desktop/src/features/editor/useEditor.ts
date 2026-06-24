@@ -37,6 +37,13 @@ export interface EditorApi {
   getObjects: () => fabric.Object[];
 
   addText: (heading?: boolean) => void;
+  addTextPreset: (preset: {
+    text: string;
+    fontSize: number;
+    fontWeight?: string;
+    fill?: string;
+    width?: number;
+  }) => void;
   addRect: () => void;
   addCircle: () => void;
   addLine: () => void;
@@ -78,7 +85,9 @@ export interface EditorApi {
   exportScene: () => FabricScene;
 }
 
-export function useEditor(): EditorApi {
+export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
+  const onSceneChangeRef = useRef(opts?.onSceneChange);
+  onSceneChangeRef.current = opts?.onSceneChange;
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const sizeRef = useRef({ w: DEFAULT_TEMPLATE_W, h: DEFAULT_TEMPLATE_H });
@@ -96,6 +105,11 @@ export function useEditor(): EditorApi {
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
+  const notifySceneChange = useCallback(() => {
+    if (restoring.current) return;
+    onSceneChangeRef.current?.();
+  }, []);
+
   const refreshHistoryFlags = useCallback(() => {
     setCanUndo(undoStack.current.length > 1);
     setCanRedo(redoStack.current.length > 0);
@@ -109,6 +123,7 @@ export function useEditor(): EditorApi {
 
   const snapshot = useCallback(() => {
     if (restoring.current) return;
+    notifySceneChange();
     if (snapTimer.current) window.clearTimeout(snapTimer.current);
     snapTimer.current = window.setTimeout(() => {
       const json = sceneJSON();
@@ -120,7 +135,7 @@ export function useEditor(): EditorApi {
         refreshHistoryFlags();
       }
     }, 200);
-  }, [sceneJSON, refreshHistoryFlags]);
+  }, [sceneJSON, refreshHistoryFlags, notifySceneChange]);
 
   const applyZoom = useCallback((z: number) => {
     const c = canvasRef.current;
@@ -200,6 +215,29 @@ export function useEditor(): EditorApi {
         fontFamily: "Be Vietnam Pro",
         fontWeight: heading ? "700" : "400",
         fill: heading ? BRAND_ORANGE : "#1f1d1b",
+        textAlign: "left",
+        left: 0,
+        top: 0,
+      });
+      add(t);
+    },
+    [add],
+  );
+
+  const addTextPreset = useCallback(
+    (preset: {
+      text: string;
+      fontSize: number;
+      fontWeight?: string;
+      fill?: string;
+      width?: number;
+    }) => {
+      const t = new fabric.Textbox(preset.text, {
+        width: preset.width ?? 480,
+        fontSize: preset.fontSize,
+        fontFamily: "Be Vietnam Pro",
+        fontWeight: preset.fontWeight ?? "400",
+        fill: preset.fill ?? "#1f1d1b",
         textAlign: "left",
         left: 0,
         top: 0,
@@ -646,6 +684,7 @@ export function useEditor(): EditorApi {
     getActiveMany: () => canvasRef.current?.getActiveObjects() ?? [],
     getObjects: () => canvasRef.current?.getObjects() ?? [],
     addText,
+    addTextPreset,
     addRect,
     addCircle,
     addLine,

@@ -35,7 +35,7 @@ import {
 
 import { getBool, getId, getStr, isTextType } from "../../lib/fabric-util.js";
 import type { EditorApi } from "./useEditor.js";
-import { DESIGN_SLOTS, PALETTE } from "./palette.js";
+import { BRAND_COLORS, DESIGN_SLOTS, PALETTE, TEXT_STYLE_PRESETS } from "./palette.js";
 import { pickImageDataUrl } from "./pickImage.js";
 
 type Sub = "add" | "upload" | "bg" | "data" | "layers";
@@ -116,24 +116,42 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
         </Tabs.List>
 
         <Tabs.Panel value="add">
-          <SimpleGrid cols={2} spacing="xs">
-            {ADD_ITEMS.map((it) => (
-              <Button
-                key={it.label}
-                variant="default"
-                h={76}
-                onClick={() => it.run(ed)}
-                leftSection={<it.Icon size={24} />}
-                styles={{
-                  inner: { flexDirection: "column", gap: 8 },
-                  section: { marginRight: 0 },
-                  label: { fontSize: 12, fontWeight: 600 },
-                }}
-              >
-                {it.label}
-              </Button>
-            ))}
-          </SimpleGrid>
+          <Stack gap="md">
+            <SimpleGrid cols={2} spacing="xs">
+              {ADD_ITEMS.map((it) => (
+                <Button
+                  key={it.label}
+                  variant="default"
+                  h={76}
+                  onClick={() => it.run(ed)}
+                  leftSection={<it.Icon size={24} />}
+                  styles={{
+                    inner: { flexDirection: "column", gap: 8 },
+                    section: { marginRight: 0 },
+                    label: { fontSize: 12, fontWeight: 600 },
+                  }}
+                >
+                  {it.label}
+                </Button>
+              ))}
+            </SimpleGrid>
+            <Text size="xs" fw={600} c="dimmed">
+              Style nhanh
+            </Text>
+            <SimpleGrid cols={1} spacing="xs">
+              {TEXT_STYLE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  variant="light"
+                  size="sm"
+                  onClick={() => ed.addTextPreset(preset)}
+                  styles={{ label: { fontWeight: 600 } }}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </SimpleGrid>
+          </Stack>
         </Tabs.Panel>
 
         <Tabs.Panel value="upload">
@@ -156,6 +174,31 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
 
         <Tabs.Panel value="bg">
           <Stack gap="sm">
+            <Text size="xs" fw={600} c="dimmed">
+              Màu Riviu
+            </Text>
+            <Group gap="xs">
+              {BRAND_COLORS.map((c) => (
+                <Tooltip key={c.value} label={c.label} withArrow>
+                  <ActionIcon
+                    variant="default"
+                    size="lg"
+                    aria-label={c.label}
+                    onClick={() => {
+                      setBgColor(c.value);
+                      ed.setBackgroundColor(c.value);
+                    }}
+                    style={{
+                      background: c.value,
+                      border:
+                        c.value.toLowerCase() === "#ffffff"
+                          ? "1px solid var(--mantine-color-gray-4)"
+                          : undefined,
+                    }}
+                  />
+                </Tooltip>
+              ))}
+            </Group>
             <ColorInput
               label="Màu nền trang"
               value={bgColor}

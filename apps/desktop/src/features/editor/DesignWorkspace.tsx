@@ -1,4 +1,4 @@
-import { useReducer, useRef, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
 import { notifications } from "@mantine/notifications";
 import type { TemplateSet } from "@genposter/schema";
 
@@ -7,44 +7,63 @@ import { emptyPage, genId } from "../../lib/templateset-util.js";
 import { renderThumb } from "../../lib/thumbnail.js";
 import { DesignHome } from "./DesignHome.js";
 import { EditorTab } from "./EditorTab.js";
+import type { SaveStatus } from "./Toolbar.js";
 import { useEditor } from "./useEditor.js";
 
 export function DesignWorkspace() {
-  const ed = useEditor();
   const setRef = useRef<TemplateSet | null>(null);
   const [view, setView] = useState<"home" | "editor">("home");
   const [pageIndex, setPageIndex] = useState(0);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [, bump] = useReducer((x) => x + 1, 0);
 
-  function loadPageIntoEditor(set: TemplateSet, i: number) {
-    ed.setCanvasSize(set.width, set.height);
-    void ed.loadScene(set.pages[i]!.scene);
-  }
+  const viewRef = useRef(view);
+  const pageIndexRef = useRef(pageIndex);
+  viewRef.current = view;
+  pageIndexRef.current = pageIndex;
 
-  async function commitCurrent() {
-    const set = setRef.current;
-    if (!set || view !== "editor") return;
-    const p = set.pages[pageIndex];
-    if (!p) return;
-    p.scene = ed.exportScene();
-    try {
-      p.thumbnail = await renderThumb(p.scene, set.width, set.height);
-    } catch {
-      // keep previous thumbnail on failure
+  const savingRef = useRef(false);
+  const pendingRef = useRef(false);
+
+  const autoSaveRef = useRef<() => void>(() => {});
+
+  const ed = useEditor({ onSceneChange: () => autoSaveRef.current() });
+
+  const autoSave = useCallback(async () => {
+    if (viewRef.current !== "editor" || !setRef.current) return;
+    if (savingRef.current) {
+      pendingRef.current = true;
+      return;
     }
-  }
-
-  async function persist() {
-    const set = setRef.current;
-    if (!set) return;
-    setSaving(true);
+    savingRef.current = true;
+    setSaveStatus("saving");
     try {
+      const set = setRef.current;
+      if (!set) return;
+      const p = set.pages[pageIndexRef.current];
+      if (p) {
+        p.scene = ed.exportScene();
+        try {
+          p.thumbnail = await renderThumb(p.scene, set.width, set.height);
+        } catch {
+          /* keep previous thumbnail */
+        }
+      }
       await saveTemplateSet(set);
+      setSaveStatus("saved");
+    } catch (e) {
+      setSaveStatus("error");
+      notifications.show({ color: "red", message: `Lỗi lưu: ${String(e)}` });
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (pendingRef.current) {
+        pendingRef.current = false;
+        void autoSave();
+      }
     }
-  }
+  }, [ed]);
+
+  autoSaveRef.current = () => void autoSave();
 
   async function openSet(setId: string, pageId?: string) {
     try {
@@ -60,6 +79,7 @@ export function DesignWorkspace() {
       }
       setPageIndex(idx);
       setView("editor");
+      setSaveStatus("saved");
       loadPageIntoEditor(set, idx);
       bump();
     } catch (e) {
@@ -67,24 +87,21 @@ export function DesignWorkspace() {
     }
   }
 
-  async function goHome() {
-    await commitCurrent();
-    await persist();
-    setView("home");
-    bump();
+  function loadPageIntoEditor(set: TemplateSet, i: number) {
+    ed.setCanvasSize(set.width, set.height);
+    void ed.loadScene(set.pages[i]!.scene);
   }
 
-  async function onSave() {
-    await commitCurrent();
-    await persist();
-    notifications.show({ color: "teal", message: "Đã lưu mẫu" });
+  async function goHome() {
+    await autoSave();
+    setView("home");
     bump();
   }
 
   async function selectPage(i: number) {
     const set = setRef.current;
     if (!set || i === pageIndex) return;
-    await commitCurrent();
+    await autoSave();
     setPageIndex(i);
     loadPageIntoEditor(set, i);
     bump();
@@ -93,7 +110,7 @@ export function DesignWorkspace() {
   async function addPage() {
     const set = setRef.current;
     if (!set) return;
-    await commitCurrent();
+    await autoSave();
     set.pages.push(emptyPage());
     const i = set.pages.length - 1;
     setPageIndex(i);
@@ -104,7 +121,7 @@ export function DesignWorkspace() {
   async function duplicatePage(i: number) {
     const set = setRef.current;
     if (!set) return;
-    await commitCurrent();
+    await autoSave();
     const src = set.pages[i]!;
     set.pages.splice(i + 1, 0, {
       id: genId("page"),
@@ -120,7 +137,7 @@ export function DesignWorkspace() {
   async function deletePage(i: number) {
     const set = setRef.current;
     if (!set || set.pages.length <= 1) return;
-    await commitCurrent();
+    await autoSave();
     set.pages.splice(i, 1);
     const ni = Math.min(pageIndex, set.pages.length - 1);
     setPageIndex(ni);
@@ -137,6 +154,7 @@ export function DesignWorkspace() {
     set.pages.splice(target, 0, moved!);
     const ni = set.pages.findIndex((p) => p.id === curId);
     setPageIndex(ni < 0 ? target : ni);
+    void autoSave();
     bump();
   }
 
@@ -147,6 +165,10 @@ export function DesignWorkspace() {
     bump();
   }
 
+  function onNameBlur() {
+    void autoSave();
+  }
+
   return (
     <>
       {view === "home" && <DesignHome onOpen={(id, pid) => void openSet(id, pid)} />}
@@ -155,10 +177,11 @@ export function DesignWorkspace() {
           ed={ed}
           set={setRef.current}
           pageIndex={pageIndex}
-          saving={saving}
+          saveStatus={saveStatus}
+          onRetrySave={() => void autoSave()}
           onBack={() => void goHome()}
-          onSave={() => void onSave()}
           onRenameSet={renameSet}
+          onNameBlur={onNameBlur}
           onSelectPage={(i) => void selectPage(i)}
           onAddPage={() => void addPage()}
           onDuplicatePage={(i) => void duplicatePage(i)}
