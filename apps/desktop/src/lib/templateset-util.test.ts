@@ -62,4 +62,9 @@ describe("normalizeSet", () => {
     expect(set.width).toBe(1588);
     expect(set.height).toBe(2248);
   });
+  it("guarantees at least one page when pages is empty", () => {
+    const set = normalizeSet({ id: "e", name: "E", pages: [] }, "e");
+    expect(set.pages).toHaveLength(1);
+    expect(set.pages[0]!.id).toBe("p1");
+  });
 });

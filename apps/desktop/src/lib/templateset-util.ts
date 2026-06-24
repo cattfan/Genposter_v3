@@ -45,18 +45,19 @@ export function normalizeSet(raw: unknown, fallbackId: string): TemplateSet {
   const str = (v: unknown, d: string) => (typeof v === "string" ? v : d);
 
   if (Array.isArray(o.pages)) {
+    const pages = (o.pages as Record<string, unknown>[]).map((p, i) => ({
+      id: str(p?.id, `p${i + 1}`),
+      name: typeof p?.name === "string" ? (p.name as string) : undefined,
+      scene: (p?.scene as FabricScene) ?? emptyScene(),
+      thumbnail:
+        typeof p?.thumbnail === "string" ? (p.thumbnail as string) : undefined,
+    }));
     return {
       id: str(o.id, fallbackId),
       name: str(o.name, fallbackId),
       width: num(o.width, DEFAULT_TEMPLATE_W),
       height: num(o.height, DEFAULT_TEMPLATE_H),
-      pages: (o.pages as Record<string, unknown>[]).map((p, i) => ({
-        id: str(p?.id, `p${i + 1}`),
-        name: typeof p?.name === "string" ? (p.name as string) : undefined,
-        scene: (p?.scene as FabricScene) ?? emptyScene(),
-        thumbnail:
-          typeof p?.thumbnail === "string" ? (p.thumbnail as string) : undefined,
-      })),
+      pages: pages.length ? pages : [{ id: "p1", scene: emptyScene() }],
       createdAt: typeof o.createdAt === "string" ? o.createdAt : undefined,
       updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : undefined,
     };
