@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as fabric from "fabric";
-import { BRAND_ORANGE, CANVAS_H, CANVAS_W, type FabricScene } from "@genposter/schema";
+import {
+  BRAND_ORANGE,
+  DEFAULT_TEMPLATE_H,
+  DEFAULT_TEMPLATE_W,
+  type FabricScene,
+} from "@genposter/schema";
 
 import { ensureFonts } from "../../lib/fonts.js";
 import {
@@ -63,6 +68,7 @@ export interface EditorApi {
   redo: () => void;
 
   setZoom: (z: number) => void;
+  setCanvasSize: (w: number, h: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   fitTo: (cw: number, ch: number) => void;
@@ -75,6 +81,8 @@ export interface EditorApi {
 export function useEditor(): EditorApi {
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const canvasRef = useRef<fabric.Canvas | null>(null);
+  const sizeRef = useRef({ w: DEFAULT_TEMPLATE_W, h: DEFAULT_TEMPLATE_H });
+  const zoomRef = useRef(0.5);
   const [ready, setReady] = useState(false);
   const [tick, setTick] = useState(0);
   const [zoom, setZoomState] = useState(0.5);
@@ -119,8 +127,12 @@ export function useEditor(): EditorApi {
     if (!c) return;
     const clamped = Math.min(4, Math.max(0.05, z));
     c.setZoom(clamped);
-    c.setDimensions({ width: CANVAS_W * clamped, height: CANVAS_H * clamped });
+    c.setDimensions({
+      width: sizeRef.current.w * clamped,
+      height: sizeRef.current.h * clamped,
+    });
     c.requestRenderAll();
+    zoomRef.current = clamped;
     setZoomState(clamped);
   }, []);
 
@@ -129,8 +141,8 @@ export function useEditor(): EditorApi {
     const el = canvasElRef.current;
     if (!el || canvasRef.current) return;
     const canvas = new fabric.Canvas(el, {
-      width: CANVAS_W,
-      height: CANVAS_H,
+      width: sizeRef.current.w,
+      height: sizeRef.current.h,
       backgroundColor: "#ffffff",
       preserveObjectStacking: true,
     });
@@ -168,8 +180,8 @@ export function useEditor(): EditorApi {
       getId(obj);
       // place near center of page
       obj.set({
-        left: (obj.left ?? 0) + CANVAS_W / 2 - (obj.getScaledWidth() || 0) / 2,
-        top: (obj.top ?? 0) + CANVAS_H / 2 - (obj.getScaledHeight() || 0) / 2,
+        left: (obj.left ?? 0) + sizeRef.current.w / 2 - (obj.getScaledWidth() || 0) / 2,
+        top: (obj.top ?? 0) + sizeRef.current.h / 2 - (obj.getScaledHeight() || 0) / 2,
       });
       c.add(obj);
       c.setActiveObject(obj);
@@ -228,7 +240,7 @@ export function useEditor(): EditorApi {
   const addImageDataUrl = useCallback(
     async (url: string) => {
       const img = await fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" });
-      const maxW = CANVAS_W * 0.6;
+      const maxW = sizeRef.current.w * 0.6;
       if (img.width && img.width > maxW) {
         const s = maxW / img.width;
         img.scale(s);
@@ -267,7 +279,10 @@ export function useEditor(): EditorApi {
         c.backgroundImage = undefined;
       } else {
         const img = await fabric.FabricImage.fromURL(url, { crossOrigin: "anonymous" });
-        const scale = Math.max(CANVAS_W / (img.width || 1), CANVAS_H / (img.height || 1));
+        const scale = Math.max(
+          sizeRef.current.w / (img.width || 1),
+          sizeRef.current.h / (img.height || 1),
+        );
         img.set({ scaleX: scale, scaleY: scale, originX: "left", originY: "top", left: 0, top: 0 });
         c.backgroundImage = img;
       }
@@ -367,19 +382,19 @@ export function useEditor(): EditorApi {
             o.set({ left: dx });
             break;
           case "center-h":
-            o.set({ left: (CANVAS_W - br.width) / 2 + dx });
+            o.set({ left: (sizeRef.current.w - br.width) / 2 + dx });
             break;
           case "right":
-            o.set({ left: CANVAS_W - br.width + dx });
+            o.set({ left: sizeRef.current.w - br.width + dx });
             break;
           case "top":
             o.set({ top: dy });
             break;
           case "center-v":
-            o.set({ top: (CANVAS_H - br.height) / 2 + dy });
+            o.set({ top: (sizeRef.current.h - br.height) / 2 + dy });
             break;
           case "bottom":
-            o.set({ top: CANVAS_H - br.height + dy });
+            o.set({ top: sizeRef.current.h - br.height + dy });
             break;
         }
         o.setCoords();
@@ -538,8 +553,16 @@ export function useEditor(): EditorApi {
   const zoomOut = useCallback(() => applyZoom(zoom / 1.15), [applyZoom, zoom]);
   const fitTo = useCallback(
     (cw: number, ch: number) => {
-      const z = Math.min(cw / CANVAS_W, ch / CANVAS_H);
+      const z = Math.min(cw / sizeRef.current.w, ch / sizeRef.current.h);
       applyZoom(Math.max(0.05, z * 0.95));
+    },
+    [applyZoom],
+  );
+
+  const setCanvasSize = useCallback(
+    (w: number, h: number) => {
+      sizeRef.current = { w, h };
+      applyZoom(zoomRef.current);
     },
     [applyZoom],
   );
@@ -646,6 +669,7 @@ export function useEditor(): EditorApi {
     undo,
     redo,
     setZoom: applyZoom,
+    setCanvasSize,
     zoomIn,
     zoomOut,
     fitTo,
