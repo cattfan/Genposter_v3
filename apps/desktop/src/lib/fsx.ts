@@ -5,6 +5,7 @@ import {
   readDir as fsReadDir,
   readFile,
   readTextFile,
+  remove as fsRemove,
   writeFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
@@ -38,6 +39,10 @@ export async function readBytes(path: string): Promise<Uint8Array> {
 
 export async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
   await writeFile(path, bytes);
+}
+
+export async function remove(path: string): Promise<void> {
+  await fsRemove(path);
 }
 
 export interface Entry {
