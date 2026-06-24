@@ -12,10 +12,9 @@ import {
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
+  IconArrowLeft,
   IconCircle,
   IconDeviceFloppy,
-  IconFilePlus,
-  IconFolderOpen,
   IconHeading,
   IconLine,
   IconPhotoPlus,
@@ -35,46 +34,35 @@ export function Toolbar({
   ed,
   name,
   onName,
-  onNew,
-  onOpen,
+  onBack,
   onSave,
   saving,
+  pageLabel,
 }: {
   ed: EditorApi;
   name: string;
   onName: (v: string) => void;
-  onNew: () => void;
-  onOpen: () => void;
+  onBack: () => void;
   onSave: () => void;
   saving: boolean;
+  pageLabel: string;
 }) {
   return (
     <Group className="editor-toolbar" gap="xs" wrap="nowrap" h={56} px="sm">
-      <Tooltip label="Mẫu mới">
-        <ActionIcon variant="subtle" color="gray" size="lg" onClick={onNew}>
-          <IconFilePlus size={20} />
-        </ActionIcon>
-      </Tooltip>
-      <Tooltip label="Mở mẫu">
-        <ActionIcon variant="subtle" color="gray" size="lg" onClick={onOpen}>
-          <IconFolderOpen size={20} />
-        </ActionIcon>
-      </Tooltip>
+      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack}>
+        Trang tổng
+      </Button>
 
       <TextInput
         value={name}
         onChange={(e) => onName(e.currentTarget.value)}
         placeholder="Tên mẫu…"
-        w={220}
+        w={200}
         variant="filled"
         styles={{ input: { fontWeight: 700 } }}
       />
 
-      <Button
-        leftSection={<IconDeviceFloppy size={18} />}
-        loading={saving}
-        onClick={onSave}
-      >
+      <Button leftSection={<IconDeviceFloppy size={18} />} loading={saving} onClick={onSave}>
         Lưu mẫu
       </Button>
 
@@ -88,16 +76,10 @@ export function Toolbar({
         </Menu.Target>
         <Menu.Dropdown>
           <Menu.Label>Văn bản</Menu.Label>
-          <Menu.Item
-            leftSection={<IconHeading size={16} />}
-            onClick={() => ed.addText(true)}
-          >
+          <Menu.Item leftSection={<IconHeading size={16} />} onClick={() => ed.addText(true)}>
             Tiêu đề
           </Menu.Item>
-          <Menu.Item
-            leftSection={<IconTypography size={16} />}
-            onClick={() => ed.addText(false)}
-          >
+          <Menu.Item leftSection={<IconTypography size={16} />} onClick={() => ed.addText(false)}>
             Văn bản
           </Menu.Item>
           <Menu.Label>Hình ảnh</Menu.Label>
@@ -110,29 +92,17 @@ export function Toolbar({
           >
             Ảnh từ máy
           </Menu.Item>
-          <Menu.Item
-            leftSection={<IconPhotoPlus size={16} />}
-            onClick={() => void ed.addImageSlot()}
-          >
+          <Menu.Item leftSection={<IconPhotoPlus size={16} />} onClick={() => void ed.addImageSlot()}>
             Ô ảnh (theo dữ liệu)
           </Menu.Item>
           <Menu.Label>Hình khối</Menu.Label>
-          <Menu.Item
-            leftSection={<IconSquare size={16} />}
-            onClick={() => ed.addRect()}
-          >
+          <Menu.Item leftSection={<IconSquare size={16} />} onClick={() => ed.addRect()}>
             Chữ nhật
           </Menu.Item>
-          <Menu.Item
-            leftSection={<IconCircle size={16} />}
-            onClick={() => ed.addCircle()}
-          >
+          <Menu.Item leftSection={<IconCircle size={16} />} onClick={() => ed.addCircle()}>
             Tròn
           </Menu.Item>
-          <Menu.Item
-            leftSection={<IconLine size={16} />}
-            onClick={() => ed.addLine()}
-          >
+          <Menu.Item leftSection={<IconLine size={16} />} onClick={() => ed.addLine()}>
             Đường kẻ
           </Menu.Item>
         </Menu.Dropdown>
@@ -142,28 +112,22 @@ export function Toolbar({
 
       <ActionIcon.Group>
         <Tooltip label="Hoàn tác (Ctrl+Z)">
-          <ActionIcon
-            variant="default"
-            size="lg"
-            onClick={ed.undo}
-            disabled={!ed.canUndo}
-          >
+          <ActionIcon variant="default" size="lg" onClick={ed.undo} disabled={!ed.canUndo}>
             <IconArrowBackUp size={20} />
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Làm lại (Ctrl+Y)">
-          <ActionIcon
-            variant="default"
-            size="lg"
-            onClick={ed.redo}
-            disabled={!ed.canRedo}
-          >
+          <ActionIcon variant="default" size="lg" onClick={ed.redo} disabled={!ed.canRedo}>
             <IconArrowForwardUp size={20} />
           </ActionIcon>
         </Tooltip>
       </ActionIcon.Group>
 
       <Box style={{ flex: 1 }} />
+
+      <Text size="sm" c="dimmed">
+        {pageLabel}
+      </Text>
 
       <ActionIcon.Group>
         <Tooltip label="Thu nhỏ">

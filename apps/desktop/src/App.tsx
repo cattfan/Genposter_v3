@@ -15,7 +15,7 @@ import {
   type IconProps,
 } from "@tabler/icons-react";
 
-import { EditorTab } from "./features/editor/EditorTab.js";
+import { DesignWorkspace } from "./features/editor/DesignWorkspace.js";
 import { ProduceTab } from "./features/produce/ProduceTab.js";
 import { SettingsModal } from "./features/settings/SettingsModal.js";
 
@@ -93,7 +93,7 @@ export function App() {
             minHeight: 0,
           }}
         >
-          <EditorTab />
+          <DesignWorkspace />
         </div>
         {tab === "produce" && <ProduceTab />}
       </main>

@@ -1,32 +1,42 @@
-import { useEffect, useRef, useState } from "react";
-import { Modal, NavLink, ScrollArea, Stack, Text } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { IconFileText } from "@tabler/icons-react";
-import { CANVAS_H, CANVAS_W, type GenposterTemplate } from "@genposter/schema";
+import { useEffect, useRef } from "react";
+import type { TemplateSet } from "@genposter/schema";
 
-import {
-  listTemplates,
-  loadTemplate,
-  saveTemplate,
-  type TemplateSummary,
-} from "../../lib/template-io.js";
-import { slugify } from "../../lib/paths.js";
 import { LeftPanel } from "./LeftPanel.js";
+import { PageStrip } from "./PageStrip.js";
 import { PropertiesPanel } from "./PropertiesPanel.js";
 import { Toolbar } from "./Toolbar.js";
-import { useEditor } from "./useEditor.js";
+import type { EditorApi } from "./useEditor.js";
 import "./editor.css";
 
-export function EditorTab() {
-  const ed = useEditor();
+export function EditorTab({
+  ed,
+  set,
+  pageIndex,
+  saving,
+  onBack,
+  onSave,
+  onRenameSet,
+  onSelectPage,
+  onAddPage,
+  onDuplicatePage,
+  onDeletePage,
+  onReorderPages,
+}: {
+  ed: EditorApi;
+  set: TemplateSet | null;
+  pageIndex: number;
+  saving: boolean;
+  onBack: () => void;
+  onSave: () => void;
+  onRenameSet: (name: string) => void;
+  onSelectPage: (i: number) => void;
+  onAddPage: () => void;
+  onDuplicatePage: (i: number) => void;
+  onDeletePage: (i: number) => void;
+  onReorderPages: (from: number, to: number) => void;
+}) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const [name, setName] = useState("Mẫu mới");
-  const [currentId, setCurrentId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [showOpen, setShowOpen] = useState(false);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
 
-  // Fit canvas to the stage on mount / resize.
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !ed.ready) return;
@@ -35,73 +45,22 @@ export function EditorTab() {
     const ro = new ResizeObserver(fit);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [ed.ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ed.ready, set?.width, set?.height]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function ok(message: string) {
-    notifications.show({ message, color: "teal" });
-  }
-  function fail(message: string) {
-    notifications.show({ message, color: "red" });
-  }
-
-  async function onSave() {
-    setSaving(true);
-    try {
-      const tpl: GenposterTemplate = {
-        id: currentId ?? slugify(name),
-        name,
-        width: CANVAS_W,
-        height: CANVAS_H,
-        scene: ed.exportScene(),
-      };
-      const id = await saveTemplate(tpl);
-      setCurrentId(id);
-      ok(`Đã lưu mẫu: ${id}`);
-    } catch (e) {
-      fail(`Lỗi lưu: ${String(e)}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onOpen() {
-    try {
-      setTemplates(await listTemplates());
-      setShowOpen(true);
-    } catch (e) {
-      fail(`Không đọc được templates: ${String(e)}`);
-    }
-  }
-
-  async function openTemplate(id: string) {
-    try {
-      const tpl = await loadTemplate(id);
-      await ed.loadScene(tpl.scene);
-      setName(tpl.name);
-      setCurrentId(tpl.id);
-      setShowOpen(false);
-      ok(`Đã mở: ${tpl.name}`);
-    } catch (e) {
-      fail(`Lỗi mở mẫu: ${String(e)}`);
-    }
-  }
-
-  function onNew() {
-    ed.newDesign();
-    setName("Mẫu mới");
-    setCurrentId(null);
-  }
+  const pages = set?.pages ?? [];
+  const aspect = set ? set.width / set.height : 0.7;
+  const pageLabel = set ? `Trang ${Math.min(pageIndex + 1, pages.length)}/${pages.length}` : "";
 
   return (
     <div className="editor">
       <Toolbar
         ed={ed}
-        name={name}
-        onName={setName}
-        onNew={onNew}
-        onOpen={onOpen}
+        name={set?.name ?? ""}
+        onName={onRenameSet}
+        onBack={onBack}
         onSave={onSave}
         saving={saving}
+        pageLabel={pageLabel}
       />
       <div className="editor-body">
         <LeftPanel ed={ed} />
@@ -112,34 +71,16 @@ export function EditorTab() {
         </div>
         <PropertiesPanel ed={ed} />
       </div>
-
-      <Modal
-        opened={showOpen}
-        onClose={() => setShowOpen(false)}
-        title="Mở mẫu"
-        size="md"
-        centered
-      >
-        {templates.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            Chưa có mẫu nào trong thư mục templates/.
-          </Text>
-        ) : (
-          <ScrollArea.Autosize mah={420}>
-            <Stack gap={4}>
-              {templates.map((t) => (
-                <NavLink
-                  key={t.id}
-                  label={t.name}
-                  description={t.id}
-                  leftSection={<IconFileText size={18} />}
-                  onClick={() => openTemplate(t.id)}
-                />
-              ))}
-            </Stack>
-          </ScrollArea.Autosize>
-        )}
-      </Modal>
+      <PageStrip
+        pages={pages}
+        currentIndex={pageIndex}
+        aspect={aspect}
+        onSelect={onSelectPage}
+        onAdd={onAddPage}
+        onDuplicate={onDuplicatePage}
+        onDelete={onDeletePage}
+        onReorder={onReorderPages}
+      />
     </div>
   );
 }

@@ -1,7 +1,5 @@
 import type { GenposterTemplate } from "@genposter/schema";
 
-import { ensureDir, writeText } from "./fsx.js";
-import { paths, slugify } from "./paths.js";
 import { listTemplateSets, loadTemplateSet } from "./templateset-io.js";
 import { makePageRef, parsePageRef } from "./templateset-util.js";
 
@@ -43,16 +41,4 @@ export async function loadTemplate(ref: string): Promise<GenposterTemplate> {
     height: set.height,
     scene: page.scene,
   };
-}
-
-/**
- * Legacy single-file save. Kept temporarily so the current EditorTab compiles;
- * it will be removed when EditorTab is replaced by the multi-page editor.
- */
-export async function saveTemplate(tpl: GenposterTemplate): Promise<string> {
-  const id = slugify(tpl.id || tpl.name);
-  const toSave: GenposterTemplate = { ...tpl, id, updatedAt: new Date().toISOString() };
-  await ensureDir(paths.templatesDir());
-  await writeText(paths.template(id), JSON.stringify(toSave, null, 2));
-  return id;
 }
