@@ -40,6 +40,19 @@ import { pickImageDataUrl } from "./pickImage.js";
 
 type Sub = "add" | "upload" | "bg" | "data" | "layers";
 
+const LEFT_TAB_KEY = "genposter.editor.leftTab";
+const VALID: Sub[] = ["add", "upload", "bg", "data", "layers"];
+
+function readLeftTab(): Sub {
+  try {
+    const v = localStorage.getItem(LEFT_TAB_KEY);
+    if (v && (VALID as string[]).includes(v)) return v as Sub;
+  } catch {
+    /* ignore */
+  }
+  return "add";
+}
+
 const ADD_ITEMS: {
   label: string;
   Icon: React.ComponentType<IconProps>;
@@ -54,7 +67,7 @@ const ADD_ITEMS: {
 ];
 
 export function LeftPanel({ ed }: { ed: EditorApi }) {
-  const [sub, setSub] = useState<Sub>("add");
+  const [sub, setSub] = useState<Sub>(readLeftTab);
   const [bgColor, setBgColor] = useState("#ffffff");
   void ed.tick;
 
@@ -62,7 +75,15 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
     <aside className="panel left">
       <Tabs
         value={sub}
-        onChange={(v) => setSub((v as Sub) ?? "add")}
+        onChange={(v) => {
+          const next = (v as Sub) ?? "add";
+          setSub(next);
+          try {
+            localStorage.setItem(LEFT_TAB_KEY, next);
+          } catch {
+            /* ignore */
+          }
+        }}
         variant="pills"
         radius="md"
       >
