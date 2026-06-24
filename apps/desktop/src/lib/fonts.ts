@@ -1,31 +1,22 @@
+import { FONT_CATALOG, tierForFamily, type FontTier } from "./font-catalog.js";
 import { assetUrl, exists } from "./fsx.js";
 import { join, paths } from "./paths.js";
 
-interface FontDef {
-  family: string;
-  file: string;
-  weight: string;
-  style: "normal" | "italic";
-}
-
-const FONTS: FontDef[] = [
-  { family: "Be Vietnam Pro", file: "BeVietnamPro-Regular.ttf", weight: "400", style: "normal" },
-  { family: "Be Vietnam Pro", file: "BeVietnamPro-Italic.ttf", weight: "400", style: "italic" },
-  { family: "Be Vietnam Pro", file: "BeVietnamPro-Medium.ttf", weight: "500", style: "normal" },
-  { family: "Be Vietnam Pro", file: "BeVietnamPro-SemiBold.ttf", weight: "600", style: "normal" },
-  { family: "Be Vietnam Pro", file: "BeVietnamPro-Bold.ttf", weight: "700", style: "normal" },
-  { family: "Montserrat", file: "Montserrat-Bold.ttf", weight: "700", style: "normal" },
-  { family: "Montserrat", file: "Montserrat-ExtraBold.ttf", weight: "800", style: "normal" },
-];
-
 const AVAILABLE = new Set<string>();
 let loaded = false;
+
+export interface FontFamilyOption {
+  value: string;
+  label: string;
+  group: string;
+  tier: FontTier;
+}
 
 /** Register brand fonts (from data/brand/fonts) so canvas + render use them. */
 export async function ensureFonts(): Promise<void> {
   if (loaded) return;
   const dir = paths.brandFonts();
-  for (const f of FONTS) {
+  for (const f of FONT_CATALOG) {
     const p = join(dir, f.file);
     if (!(await exists(p))) continue;
     try {
@@ -48,11 +39,27 @@ export async function ensureFonts(): Promise<void> {
   loaded = true;
 }
 
-/** Font families that actually loaded (plus safe web fallbacks). */
-export function availableFamilies(): string[] {
-  const base = ["Be Vietnam Pro", "Montserrat"];
-  const extra = ["Arial", "Georgia", "Times New Roman", "Roboto"];
-  return [...base, ...extra];
+/** Font families that actually loaded, grouped and sorted for UI. */
+export function availableFamilies(): FontFamilyOption[] {
+  const seen = new Set<string>();
+  const out: FontFamilyOption[] = [];
+  for (const e of FONT_CATALOG) {
+    if (!AVAILABLE.has(e.family) || seen.has(e.family)) continue;
+    seen.add(e.family);
+    out.push({
+      value: e.family,
+      label: e.family,
+      group: e.group,
+      tier: tierForFamily(e.family) ?? "A",
+    });
+  }
+  return out.sort(
+    (a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label),
+  );
+}
+
+export function getFontPreviewStyle(family: string): Record<string, string> {
+  return { fontFamily: `"${family}", sans-serif` };
 }
 
 export function isAvailable(family: string): boolean {
