@@ -44,6 +44,11 @@ async function uniqueId(base: string): Promise<string> {
   return id;
 }
 
+async function writeSet(set: TemplateSet): Promise<void> {
+  await ensureDir(paths.templatesDir());
+  await writeText(paths.template(set.id), JSON.stringify(set, null, 2));
+}
+
 export async function listTemplateSets(): Promise<TemplateSetSummary[]> {
   const dir = paths.templatesDir();
   if (!(await exists(dir))) return [];
@@ -52,10 +57,11 @@ export async function listTemplateSets(): Promise<TemplateSetSummary[]> {
   for (const e of entries) {
     if (!e.isFile || !e.name.endsWith(".json")) continue;
     try {
+      const id = fileId(e.name);
       const raw = JSON.parse(await readText(join(dir, e.name)));
-      const set = normalizeSet(raw, fileId(e.name));
+      const set = normalizeSet(raw, id);
       out.push({
-        id: set.id,
+        id,
         name: set.name,
         width: set.width,
         height: set.height,
@@ -76,15 +82,18 @@ export async function listTemplateSets(): Promise<TemplateSetSummary[]> {
 
 export async function loadTemplateSet(id: string): Promise<TemplateSet> {
   const raw = JSON.parse(await readText(paths.template(id)));
-  return normalizeSet(raw, id);
+  const set = normalizeSet(raw, id);
+  set.id = id;
+  return set;
 }
 
 export async function saveTemplateSet(set: TemplateSet): Promise<string> {
   const id = set.id || slugify(set.name);
-  const toSave: TemplateSet = { ...set, id, updatedAt: new Date().toISOString() };
-  await ensureDir(paths.templatesDir());
-  await writeText(paths.template(id), JSON.stringify(toSave, null, 2));
+  const updatedAt = new Date().toISOString();
+  const toSave: TemplateSet = { ...set, id, updatedAt };
+  await writeSet(toSave);
   set.id = id;
+  set.updatedAt = updatedAt;
   return id;
 }
 
@@ -104,8 +113,7 @@ export async function createTemplateSet(
     createdAt: now,
     updatedAt: now,
   };
-  await ensureDir(paths.templatesDir());
-  await writeText(paths.template(id), JSON.stringify(set, null, 2));
+  await writeSet(set);
   return set;
 }
 
@@ -117,10 +125,11 @@ export async function duplicateTemplateSet(id: string): Promise<string> {
     ...set,
     id: newId,
     name: `${set.name} (copy)`,
+    pages: JSON.parse(JSON.stringify(set.pages)) as TemplateSet["pages"],
     createdAt: now,
     updatedAt: now,
   };
-  await writeText(paths.template(newId), JSON.stringify(copy, null, 2));
+  await writeSet(copy);
   return newId;
 }
 
