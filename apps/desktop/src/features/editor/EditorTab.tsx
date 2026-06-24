@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TemplateSet } from "@genposter/schema";
 
+import { ContextBar } from "./ContextBar.js";
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip } from "./PageStrip.js";
 import { PropertiesPanel } from "./PropertiesPanel.js";
@@ -68,6 +69,7 @@ export function EditorTab({
         <LeftPanel ed={ed} />
         <div className="stage-column">
           <div className="stage" ref={stageRef}>
+            <ContextBar ed={ed} />
             <div className="stage-wrap">
               <canvas ref={ed.canvasElRef} />
             </div>

@@ -21,36 +21,17 @@ import {
   IconAlignRight,
   IconArrowsMove,
   IconBorderStyle2,
-  IconChevronDown,
-  IconChevronsDown,
-  IconChevronsUp,
-  IconChevronUp,
-  IconCopy,
-  IconFlipHorizontal,
-  IconFlipVertical,
   IconItalic,
-  IconLayout2,
-  IconLayoutAlignBottom,
-  IconLayoutAlignCenter,
-  IconLayoutAlignLeft,
-  IconLayoutAlignMiddle,
-  IconLayoutAlignRight,
-  IconLayoutAlignTop,
-  IconLayoutDistributeHorizontal,
-  IconLayoutDistributeVertical,
   IconLetterCase,
-  IconLock,
-  IconLockOpen,
   IconPhoto,
   IconShape,
-  IconTrash,
   IconTypography,
   IconUnderline,
 } from "@tabler/icons-react";
 
 import { availableFamilies } from "../../lib/fonts.js";
 import { isImageType, isTextType } from "../../lib/fabric-util.js";
-import type { AlignKind, EditorApi } from "./useEditor.js";
+import type { EditorApi } from "./useEditor.js";
 import { PALETTE } from "./palette.js";
 
 function num(v: unknown, d = 0): number {
@@ -87,19 +68,9 @@ function IconBtn({
   );
 }
 
-const ALIGNS: { kind: AlignKind; label: string; icon: ReactNode }[] = [
-  { kind: "left", label: "Căn trái", icon: <IconLayoutAlignLeft size={18} /> },
-  { kind: "center-h", label: "Căn giữa ngang", icon: <IconLayoutAlignCenter size={18} /> },
-  { kind: "right", label: "Căn phải", icon: <IconLayoutAlignRight size={18} /> },
-  { kind: "top", label: "Căn trên", icon: <IconLayoutAlignTop size={18} /> },
-  { kind: "center-v", label: "Căn giữa dọc", icon: <IconLayoutAlignMiddle size={18} /> },
-  { kind: "bottom", label: "Căn dưới", icon: <IconLayoutAlignBottom size={18} /> },
-];
-
 export function PropertiesPanel({ ed }: { ed: EditorApi }) {
   void ed.tick; // re-render on changes
   const obj = ed.getActive();
-  const many = ed.getActiveMany();
 
   if (!obj) {
     return (
@@ -119,7 +90,6 @@ export function PropertiesPanel({ ed }: { ed: EditorApi }) {
   const isRect = obj.type === "rect";
   const isShape = isRect || obj.type === "circle" || obj.type === "line";
   const t = obj as fabric.Textbox;
-  const locked = Boolean((obj as unknown as { gpLocked?: boolean }).gpLocked);
 
   const up = (p: Record<string, unknown>) => ed.updateActive(p);
 
@@ -127,86 +97,10 @@ export function PropertiesPanel({ ed }: { ed: EditorApi }) {
     <aside className="panel right">
       <Accordion
         multiple
-        defaultValue={["arrange", "geometry", "text", "shape", "stroke"]}
+        defaultValue={["geometry", "text", "shape", "stroke"]}
         variant="separated"
         styles={{ content: { padding: "8px 10px 12px" }, label: { padding: "8px 0" } }}
       >
-        <Accordion.Item value="arrange">
-          <Accordion.Control icon={<IconLayout2 size={18} />}>
-            Sắp xếp
-          </Accordion.Control>
-          <Accordion.Panel>
-            <Stack gap="xs">
-              <ActionIcon.Group>
-                {ALIGNS.map((a) => (
-                  <IconBtn key={a.kind} label={a.label} onClick={() => ed.align(a.kind)}>
-                    {a.icon}
-                  </IconBtn>
-                ))}
-              </ActionIcon.Group>
-
-              <Group justify="space-between" gap="xs">
-                <ActionIcon.Group>
-                  <IconBtn label="Lên trên cùng" onClick={() => ed.order("front")}>
-                    <IconChevronsUp size={18} />
-                  </IconBtn>
-                  <IconBtn label="Lên một bậc" onClick={() => ed.order("forward")}>
-                    <IconChevronUp size={18} />
-                  </IconBtn>
-                  <IconBtn label="Xuống một bậc" onClick={() => ed.order("backward")}>
-                    <IconChevronDown size={18} />
-                  </IconBtn>
-                  <IconBtn label="Xuống dưới cùng" onClick={() => ed.order("back")}>
-                    <IconChevronsDown size={18} />
-                  </IconBtn>
-                </ActionIcon.Group>
-              </Group>
-
-              <Group justify="space-between" gap="xs">
-                <ActionIcon.Group>
-                  <IconBtn label="Lật ngang" onClick={() => ed.flip("x")}>
-                    <IconFlipHorizontal size={18} />
-                  </IconBtn>
-                  <IconBtn label="Lật dọc" onClick={() => ed.flip("y")}>
-                    <IconFlipVertical size={18} />
-                  </IconBtn>
-                  <IconBtn
-                    label={locked ? "Mở khóa" : "Khóa"}
-                    active={locked}
-                    onClick={() => ed.toggleLock()}
-                  >
-                    {locked ? <IconLock size={18} /> : <IconLockOpen size={18} />}
-                  </IconBtn>
-                  <IconBtn label="Nhân bản" onClick={() => void ed.duplicateSelected()}>
-                    <IconCopy size={18} />
-                  </IconBtn>
-                </ActionIcon.Group>
-                <Tooltip label="Xóa" withArrow>
-                  <ActionIcon
-                    variant="light"
-                    color="red"
-                    size="lg"
-                    onClick={() => ed.deleteSelected()}
-                  >
-                    <IconTrash size={18} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-
-              {many.length >= 3 && (
-                <ActionIcon.Group>
-                  <IconBtn label="Dàn đều ngang" onClick={() => ed.distribute("h")}>
-                    <IconLayoutDistributeHorizontal size={18} />
-                  </IconBtn>
-                  <IconBtn label="Dàn đều dọc" onClick={() => ed.distribute("v")}>
-                    <IconLayoutDistributeVertical size={18} />
-                  </IconBtn>
-                </ActionIcon.Group>
-              )}
-            </Stack>
-          </Accordion.Panel>
-        </Accordion.Item>
-
         <Accordion.Item value="geometry">
           <Accordion.Control icon={<IconArrowsMove size={18} />}>
             Vị trí & kích thước
