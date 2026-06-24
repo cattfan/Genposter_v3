@@ -109,7 +109,15 @@ export function DesignHome({
     <div className="design-home">
       <Group justify="space-between" align="center" mb="lg">
         <Title order={3}>Mẫu của bạn</Title>
-        <Button leftSection={<IconPlus size={18} />} onClick={() => setCreateOpen(true)}>
+        <Button
+          leftSection={<IconPlus size={18} />}
+          onClick={() => {
+            setNameInput("");
+            setW(DEFAULT_TEMPLATE_W);
+            setH(DEFAULT_TEMPLATE_H);
+            setCreateOpen(true);
+          }}
+        >
           Tạo mẫu mới
         </Button>
       </Group>
