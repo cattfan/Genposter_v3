@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { FabricObject } from "fabric";
 import { Menu } from "@mantine/core";
 import {
+  IconBrush,
   IconChevronDown,
   IconChevronsDown,
   IconChevronsUp,
@@ -15,11 +16,17 @@ import {
   IconLayoutAlignTop,
   IconLayoutDistributeHorizontal,
   IconLayoutDistributeVertical,
+  IconLink,
+  IconLinkOff,
   IconLock,
   IconLockOpen,
+  IconStack2,
   IconTrash,
+  IconClipboard,
 } from "@tabler/icons-react";
 
+import { getObjectGroupId } from "./dataGroups.js";
+import { DataGroupModal } from "./DataGroupModal.js";
 import type { AlignKind, EditorApi } from "./useEditor.js";
 
 const ALIGNS: { kind: AlignKind; label: string; icon: ReactNode }[] = [
@@ -33,6 +40,7 @@ const ALIGNS: { kind: AlignKind; label: string; icon: ReactNode }[] = [
 
 export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [groupModal, setGroupModal] = useState(false);
 
   useEffect(() => {
     const canvas = ed.getCanvas();
@@ -65,6 +73,7 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
   const obj = ed.getActive();
   const many = ed.getActiveMany();
   const locked = Boolean((obj as unknown as { gpLocked?: boolean } | null)?.gpLocked);
+  const groupId = obj ? getObjectGroupId(obj) : "";
   const opened = pos !== null && obj !== null;
 
   const close = () => setPos(null);
@@ -74,7 +83,13 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
   };
 
   return (
-    <Menu
+    <>
+      <DataGroupModal
+        opened={groupModal}
+        onClose={() => setGroupModal(false)}
+        ed={ed}
+      />
+      <Menu
       opened={opened}
       onChange={(next) => {
         if (!next) close();
@@ -133,6 +148,57 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
         </Menu.Item>
 
         <Menu.Divider />
+        <Menu.Label>Style</Menu.Label>
+        <Menu.Item
+          leftSection={<IconBrush size={14} />}
+          onClick={run(() => ed.copyStyle())}
+        >
+          Sao chép style
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconClipboard size={14} />}
+          disabled={!ed.canPasteStyle()}
+          onClick={run(() => ed.pasteStyle())}
+        >
+          Dán style
+        </Menu.Item>
+
+        <Menu.Divider />
+        <Menu.Label>Nhóm dữ liệu</Menu.Label>
+        {many.length >= 2 && (
+          <Menu.Item
+            leftSection={<IconLink size={14} />}
+            onClick={run(() => setGroupModal(true))}
+          >
+            Gom nhóm dữ liệu…
+          </Menu.Item>
+        )}
+        {groupId && obj && (
+          <Menu.Item
+            leftSection={<IconLinkOff size={14} />}
+            onClick={run(() => ed.removeFromDataGroup(obj))}
+          >
+            Tách khỏi nhóm
+          </Menu.Item>
+        )}
+        {many.length >= 2 && (
+          <Menu.Item
+            leftSection={<IconStack2 size={14} />}
+            onClick={run(() => ed.groupLayout())}
+          >
+            Nhóm layout
+          </Menu.Item>
+        )}
+        {obj?.type === "group" && (
+          <Menu.Item
+            leftSection={<IconStack2 size={14} />}
+            onClick={run(() => ed.ungroupLayout())}
+          >
+            Bỏ nhóm layout
+          </Menu.Item>
+        )}
+
+        <Menu.Divider />
         <Menu.Item
           leftSection={<IconCopy size={14} />}
           onClick={run(() => void ed.duplicateSelected())}
@@ -173,5 +239,6 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
         )}
       </Menu.Dropdown>
     </Menu>
+    </>
   );
 }

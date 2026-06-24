@@ -5,7 +5,6 @@ import {
   Box,
   Button,
   Card,
-  Checkbox,
   Group,
   NumberInput,
   Progress,
@@ -13,7 +12,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
@@ -27,7 +25,7 @@ import {
   IconFolderOpen,
   IconPlayerPlay,
 } from "@tabler/icons-react";
-import type { GenposterTemplate, SlidePayload } from "@genposter/schema";
+import type { GenposterTemplate, SlidePayload, DataGroupDef } from "@genposter/schema";
 
 import { buildSlides } from "../../lib/build.js";
 import { sheetColumns, listSheets, type SheetInfo } from "../../lib/excel.js";
@@ -44,8 +42,9 @@ import {
   loadTemplate,
   type TemplateSummary,
 } from "../../lib/template-io.js";
+import { migrateSceneDataGroups } from "../../lib/scene-groups.js";
 import { extractElements, type ElementInfo } from "./elements.js";
-import { bindKind, buildBindOptions } from "./options.js";
+import { ProduceBindingsPanel } from "./ProduceBindingsPanel.js";
 import {
   draftToRecipe,
   emptyDraft,
@@ -67,6 +66,7 @@ export function ProduceTab() {
 
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [elements, setElements] = useState<ElementInfo[]>([]);
+  const [dataGroups, setDataGroups] = useState<DataGroupDef[]>([]);
   const [template, setTemplate] = useState<GenposterTemplate | null>(null);
 
   const [payload, setPayload] = useState<SlidePayload | null>(null);
@@ -100,13 +100,16 @@ export function ProduceTab() {
     if (!id) {
       setTemplate(null);
       setElements([]);
+      setDataGroups([]);
       return;
     }
     try {
       const tpl = await loadTemplate(id);
-      const els = extractElements(tpl.scene);
-      setTemplate(tpl);
+      const migrated = migrateSceneDataGroups(tpl.scene);
+      const els = extractElements(migrated);
+      setTemplate({ ...tpl, scene: migrated });
       setElements(els);
+      setDataGroups((migrated.dataGroups as DataGroupDef[] | undefined) ?? []);
       setDraft((d) => mergeElements({ ...(base ?? d), templateId: id }, els));
     } catch (e) {
       fail(`Lỗi tải mẫu: ${String(e)}`);
@@ -403,93 +406,13 @@ export function ProduceTab() {
               Chọn một mẫu để hiển thị danh sách đối tượng.
             </Text>
           ) : (
-            <Table striped highlightOnHover verticalSpacing="xs" layout="fixed">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w="26%">Đối tượng</Table.Th>
-                  <Table.Th w="32%">Nguồn dữ liệu</Table.Th>
-                  <Table.Th w="32%">Giá trị / prompt</Table.Th>
-                  <Table.Th w="10%">Hàng DS</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {elements.map((el) => {
-                  const bind = draft.bindings[el.id] ?? "";
-                  const kind = bindKind(bind);
-                  const selectVal =
-                    kind === "static" ? "static:" : kind === "ai" ? "ai:" : bind;
-                  const options = buildBindOptions(canonFields, el.isImage);
-                  const inRow = draft.listRowIds.includes(el.id);
-                  return (
-                    <Table.Tr key={el.id}>
-                      <Table.Td>
-                        <Text size="sm" fw={600} truncate>
-                          {el.label}
-                        </Text>
-                        <Text size="xs" c="dimmed" truncate>
-                          {el.type} · {el.id}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Select
-                          size="xs"
-                          allowDeselect={false}
-                          comboboxProps={{ withinPortal: true }}
-                          value={selectVal}
-                          data={options}
-                          onChange={(v) =>
-                            setD({
-                              bindings: {
-                                ...draft.bindings,
-                                [el.id]: v ?? "",
-                              },
-                            })
-                          }
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        {kind !== "plain" ? (
-                          <TextInput
-                            size="xs"
-                            value={bind.slice(kind === "static" ? 7 : 3)}
-                            placeholder={
-                              kind === "ai"
-                                ? "Prompt dùng {{item.name}}…"
-                                : "Văn bản…"
-                            }
-                            onChange={(e) =>
-                              setD({
-                                bindings: {
-                                  ...draft.bindings,
-                                  [el.id]:
-                                    (kind === "static" ? "static:" : "ai:") +
-                                    e.currentTarget.value,
-                                },
-                              })
-                            }
-                          />
-                        ) : (
-                          <Text c="dimmed" size="xs">
-                            —
-                          </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td ta="center">
-                        <Checkbox
-                          checked={inRow}
-                          onChange={(e) => {
-                            const set = new Set(draft.listRowIds);
-                            if (e.currentTarget.checked) set.add(el.id);
-                            else set.delete(el.id);
-                            setD({ listRowIds: [...set] });
-                          }}
-                        />
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
+            <ProduceBindingsPanel
+              draft={draft}
+              setD={setD}
+              elements={elements}
+              dataGroups={dataGroups}
+              canonFields={canonFields}
+            />
           )}
         </Card>
 

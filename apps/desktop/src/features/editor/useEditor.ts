@@ -4,6 +4,7 @@ import {
   BRAND_ORANGE,
   DEFAULT_TEMPLATE_H,
   DEFAULT_TEMPLATE_W,
+  type DataGroupDef,
   type FabricScene,
 } from "@genposter/schema";
 
@@ -14,6 +15,22 @@ import {
   placeholderDataUrl,
   setProp,
 } from "../../lib/fabric-util.js";
+import { attachSnapGuides } from "./snapGuides.js";
+import {
+  assignObjectsToGroup,
+  clearObjectGroup,
+  createDataGroupDef,
+  getObjectGroupId,
+  migrateSceneDataGroups,
+  removeMemberFromGroups,
+  syncGroupMembers,
+  updateGroup,
+} from "./dataGroups.js";
+import {
+  copyStyleFrom,
+  hasStoredStyle,
+  pasteStyleTo,
+} from "./styleClipboard.js";
 
 export type AlignKind =
   | "left"
@@ -71,6 +88,17 @@ export interface EditorApi {
   setGpBind: (obj: fabric.Object, bind: string, label?: string) => void;
   toggleListRow: (obj: fabric.Object) => void;
 
+  copyStyle: () => boolean;
+  pasteStyle: () => boolean;
+  canPasteStyle: () => boolean;
+
+  getDataGroups: () => DataGroupDef[];
+  createDataGroup: (label: string, mode?: DataGroupDef["mode"]) => boolean;
+  removeFromDataGroup: (obj: fabric.Object) => void;
+  updateDataGroup: (groupId: string, patch: Partial<DataGroupDef>) => void;
+  groupLayout: () => void;
+  ungroupLayout: () => void;
+
   undo: () => void;
   redo: () => void;
 
@@ -102,6 +130,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   const redoStack = useRef<string[]>([]);
   const restoring = useRef(false);
   const snapTimer = useRef<number | null>(null);
+  const dataGroupsRef = useRef<DataGroupDef[]>([]);
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -118,7 +147,12 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   const sceneJSON = useCallback((): string => {
     const c = canvasRef.current;
     if (!c) return "";
-    return JSON.stringify(c.toObject([...CUSTOM_PROPS]));
+    const synced = syncGroupMembers(dataGroupsRef.current, c);
+    dataGroupsRef.current = synced;
+    return JSON.stringify({
+      ...(c.toObject([...CUSTOM_PROPS]) as object),
+      dataGroups: synced,
+    });
   }, []);
 
   const snapshot = useCallback(() => {
@@ -169,20 +203,37 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     canvas.on("selection:updated", onSelect);
     canvas.on("selection:cleared", onSelect);
     canvas.on("object:added", snapshot);
-    canvas.on("object:removed", snapshot);
+    canvas.on("object:removed", (e) => {
+      const target = e.target;
+      if (target) {
+        dataGroupsRef.current = removeMemberFromGroups(
+          dataGroupsRef.current,
+          getId(target),
+        );
+      }
+      snapshot();
+    });
     canvas.on("object:modified", () => {
       snapshot();
       bump();
     });
 
+    const detachSnapGuides = attachSnapGuides(canvas, () => sizeRef.current);
+
     void ensureFonts().then(() => bump());
 
     // seed history
-    undoStack.current = [JSON.stringify(canvas.toObject([...CUSTOM_PROPS]))];
+    undoStack.current = [
+      JSON.stringify({
+        ...(canvas.toObject([...CUSTOM_PROPS]) as object),
+        dataGroups: [],
+      }),
+    ];
     applyZoom(0.5);
     setReady(true);
 
     return () => {
+      detachSnapGuides();
       canvas.dispose();
       canvasRef.current = null;
     };
@@ -559,12 +610,126 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     [bump, snapshot],
   );
 
+  const copyStyle = useCallback(() => {
+    const c = canvasRef.current;
+    const obj = c?.getActiveObject();
+    if (!obj) return false;
+    const ok = copyStyleFrom(obj);
+    if (ok) bump();
+    return ok;
+  }, [bump]);
+
+  const pasteStyle = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return false;
+    const targets = c.getActiveObjects();
+    if (!targets.length) return false;
+    let applied = false;
+    for (const obj of targets) {
+      const patch = pasteStyleTo(obj);
+      if (patch) {
+        obj.set(patch);
+        obj.setCoords();
+        applied = true;
+      }
+    }
+    if (applied) {
+      c.requestRenderAll();
+      snapshot();
+      bump();
+    }
+    return applied;
+  }, [bump, snapshot]);
+
+  const canPasteStyle = useCallback(() => hasStoredStyle(), []);
+
+  const getDataGroups = useCallback(() => dataGroupsRef.current, []);
+
+  const createDataGroup = useCallback(
+    (label: string, mode: DataGroupDef["mode"] = "slot") => {
+      const c = canvasRef.current;
+      if (!c) return false;
+      const objs = c.getActiveObjects();
+      if (objs.length < 2) return false;
+      const def = createDataGroupDef(
+        label,
+        objs.map((o) => getId(o)),
+        mode,
+      );
+      assignObjectsToGroup(objs, def.id);
+      dataGroupsRef.current = [...dataGroupsRef.current, def];
+      snapshot();
+      bump();
+      return true;
+    },
+    [bump, snapshot],
+  );
+
+  const removeFromDataGroup = useCallback(
+    (obj: fabric.Object) => {
+      const gid = getObjectGroupId(obj);
+      if (!gid) return;
+      clearObjectGroup(obj);
+      dataGroupsRef.current = removeMemberFromGroups(
+        dataGroupsRef.current,
+        getId(obj),
+      );
+      snapshot();
+      bump();
+    },
+    [bump, snapshot],
+  );
+
+  const updateDataGroup = useCallback(
+    (groupId: string, patch: Partial<DataGroupDef>) => {
+      dataGroupsRef.current = updateGroup(dataGroupsRef.current, groupId, patch);
+      snapshot();
+      bump();
+    },
+    [bump, snapshot],
+  );
+
+  const groupLayout = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const objs = c.getActiveObjects();
+    if (objs.length < 2) return;
+    c.discardActiveObject();
+    for (const o of objs) c.remove(o);
+    const group = new fabric.Group(objs);
+    getId(group);
+    c.add(group);
+    c.setActiveObject(group);
+    c.requestRenderAll();
+    snapshot();
+    bump();
+  }, [bump, snapshot]);
+
+  const ungroupLayout = useCallback(() => {
+    const c = canvasRef.current;
+    const obj = c?.getActiveObject();
+    if (!c || !obj || obj.type !== "group") return;
+    const g = obj as fabric.Group;
+    const items = [...g.getObjects()];
+    c.remove(g);
+    for (const item of items) c.add(item);
+    c.discardActiveObject();
+    c.requestRenderAll();
+    snapshot();
+    bump();
+  }, [bump, snapshot]);
+
   const restore = useCallback(
     (json: string) => {
       const c = canvasRef.current;
       if (!c || !json) return;
       restoring.current = true;
-      void c.loadFromJSON(JSON.parse(json)).then(() => {
+      const parsed = JSON.parse(json) as FabricScene;
+      dataGroupsRef.current = (parsed.dataGroups as DataGroupDef[] | undefined) ?? [];
+      const { dataGroups: _dg, ...canvasJson } = parsed;
+      void _dg;
+      void c.loadFromJSON(canvasJson).then(() => {
+        dataGroupsRef.current = syncGroupMembers(dataGroupsRef.current, c);
         c.requestRenderAll();
         restoring.current = false;
         refreshHistoryFlags();
@@ -611,6 +776,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     if (!c) return;
     c.clear();
     c.backgroundColor = "#ffffff";
+    dataGroupsRef.current = [];
     c.requestRenderAll();
     undoStack.current = [JSON.stringify(c.toObject([...CUSTOM_PROPS]))];
     redoStack.current = [];
@@ -622,11 +788,21 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     async (scene: FabricScene) => {
       const c = canvasRef.current;
       if (!c) return;
+      const migrated = migrateSceneDataGroups(scene);
+      dataGroupsRef.current = (migrated.dataGroups as DataGroupDef[] | undefined) ?? [];
       restoring.current = true;
-      await c.loadFromJSON(scene);
+      const { dataGroups: _dg, ...canvasJson } = migrated;
+      void _dg;
+      await c.loadFromJSON(canvasJson);
+      dataGroupsRef.current = syncGroupMembers(dataGroupsRef.current, c);
       c.requestRenderAll();
       restoring.current = false;
-      undoStack.current = [JSON.stringify(c.toObject([...CUSTOM_PROPS]))];
+      undoStack.current = [
+        JSON.stringify({
+          ...(c.toObject([...CUSTOM_PROPS]) as object),
+          dataGroups: dataGroupsRef.current,
+        }),
+      ];
       redoStack.current = [];
       refreshHistoryFlags();
       bump();
@@ -636,8 +812,13 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
 
   const exportScene = useCallback((): FabricScene => {
     const c = canvasRef.current;
-    if (!c) return { objects: [] };
-    return c.toObject([...CUSTOM_PROPS]) as unknown as FabricScene;
+    if (!c) return { objects: [], dataGroups: [] } as FabricScene;
+    const synced = syncGroupMembers(dataGroupsRef.current, c);
+    dataGroupsRef.current = synced;
+    return {
+      ...(c.toObject([...CUSTOM_PROPS]) as object),
+      dataGroups: synced,
+    } as unknown as FabricScene;
   }, []);
 
   // keyboard shortcuts
@@ -660,6 +841,12 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copyStyle();
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteStyle();
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         void duplicateSelected();
@@ -670,7 +857,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, duplicateSelected, deleteSelected]);
+  }, [undo, redo, duplicateSelected, deleteSelected, copyStyle, pasteStyle]);
 
   return {
     canvasElRef,
@@ -706,6 +893,15 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     selectObject,
     setGpBind,
     toggleListRow,
+    copyStyle,
+    pasteStyle,
+    canPasteStyle,
+    getDataGroups,
+    createDataGroup,
+    removeFromDataGroup,
+    updateDataGroup,
+    groupLayout,
+    ungroupLayout,
     undo,
     redo,
     setZoom: applyZoom,

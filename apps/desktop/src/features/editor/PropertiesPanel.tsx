@@ -27,9 +27,12 @@ import {
   IconShape,
   IconTypography,
   IconUnderline,
+  IconBrush,
+  IconClipboard,
 } from "@tabler/icons-react";
 
 import { isImageType, isTextType } from "../../lib/fabric-util.js";
+import { getObjectGroupId } from "./dataGroups.js";
 import { FontFamilyCombobox } from "./FontFamilyCombobox.js";
 import type { EditorApi } from "./useEditor.js";
 import { PALETTE } from "./palette.js";
@@ -109,9 +112,104 @@ export function PropertiesPanel({
   const t = obj as fabric.Textbox;
 
   const up = (p: Record<string, unknown>) => ed.updateActive(p);
+  const groupId = getObjectGroupId(obj);
+  const group = groupId ? ed.getDataGroups().find((g) => g.id === groupId) : undefined;
 
   return (
     <PanelShell embedded={embedded}>
+      <Group gap="xs" mb="sm">
+        <Tooltip label="Sao chép style (Ctrl+Shift+C)" withArrow>
+          <ActionIcon variant="default" size="lg" onClick={() => ed.copyStyle()}>
+            <IconBrush size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Dán style (Ctrl+Shift+V)" withArrow>
+          <ActionIcon
+            variant="default"
+            size="lg"
+            disabled={!ed.canPasteStyle()}
+            onClick={() => ed.pasteStyle()}
+          >
+            <IconClipboard size={18} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+      {group && (
+        <Stack gap="xs" mb="sm" p="xs" style={{ background: "var(--mantine-color-gray-0)", borderRadius: 8 }}>
+          <Text size="xs" fw={600}>
+            Nhóm dữ liệu: {group.label}
+          </Text>
+          <SegmentedControl
+            size="xs"
+            value={group.mode}
+            onChange={(v) =>
+              ed.updateDataGroup(group.id, { mode: v as "slot" | "repeat" })
+            }
+            data={[
+              { value: "slot", label: "1 item" },
+              { value: "repeat", label: "Lặp DS" },
+            ]}
+          />
+          {group.mode === "slot" ? (
+            <NumberInput
+              size="xs"
+              label="Item # trên slide"
+              min={1}
+              value={(group.itemIndex ?? 0) + 1}
+              onChange={(v) =>
+                ed.updateDataGroup(group.id, {
+                  itemIndex: Math.max(0, (typeof v === "number" ? v : 1) - 1),
+                })
+              }
+            />
+          ) : (
+            <SimpleGrid cols={3} spacing="xs">
+              <NumberInput
+                size="xs"
+                label="Cao hàng"
+                value={group.repeat?.rowHeight ?? 110}
+                onChange={(v) =>
+                  ed.updateDataGroup(group.id, {
+                    repeat: {
+                      rowHeight: typeof v === "number" ? v : 110,
+                      gap: group.repeat?.gap ?? 8,
+                      maxRows: group.repeat?.maxRows ?? 7,
+                    },
+                  })
+                }
+              />
+              <NumberInput
+                size="xs"
+                label="Gap"
+                value={group.repeat?.gap ?? 8}
+                onChange={(v) =>
+                  ed.updateDataGroup(group.id, {
+                    repeat: {
+                      rowHeight: group.repeat?.rowHeight ?? 110,
+                      gap: typeof v === "number" ? v : 8,
+                      maxRows: group.repeat?.maxRows ?? 7,
+                    },
+                  })
+                }
+              />
+              <NumberInput
+                size="xs"
+                label="Max"
+                value={group.repeat?.maxRows ?? 7}
+                onChange={(v) =>
+                  ed.updateDataGroup(group.id, {
+                    repeat: {
+                      rowHeight: group.repeat?.rowHeight ?? 110,
+                      gap: group.repeat?.gap ?? 8,
+                      maxRows: typeof v === "number" ? v : 7,
+                    },
+                  })
+                }
+              />
+            </SimpleGrid>
+          )}
+        </Stack>
+      )}
       <Accordion
         multiple
         defaultValue={["geometry", "text", "shape", "stroke"]}

@@ -1,4 +1,4 @@
-import type { FabricScene } from "@genposter/schema";
+import type { DataGroupDef, FabricScene } from "@genposter/schema";
 
 export interface ElementInfo {
   id: string;
@@ -6,6 +6,7 @@ export interface ElementInfo {
   label: string;
   bindHint: string;
   listRow: boolean;
+  dataGroupId: string;
   isImage: boolean;
 }
 
@@ -23,8 +24,13 @@ export function extractElements(scene: FabricScene | undefined): ElementInfo[] {
       label: (o.gpLabel as string) || type,
       bindHint: (o.gpBind as string) || "",
       listRow: Boolean(o.gpListRow),
+      dataGroupId: (o.gpDataGroup as string) || "",
       isImage: type === "image",
     });
   }
   return out;
+}
+
+export function extractDataGroups(scene: FabricScene | undefined): DataGroupDef[] {
+  return (scene?.dataGroups as DataGroupDef[] | undefined) ?? [];
 }

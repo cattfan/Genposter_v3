@@ -57,10 +57,31 @@ export interface FabricObjectJSON {
   /** Design-time slot hint (e.g. "item.name"); not sheet-specific. */
   gpBind?: string;
   gpLabel?: string;
-  /** Marks this object as part of the repeating list row. */
+  /** Marks this object as part of the repeating list row. @deprecated use gpDataGroup */
   gpListRow?: boolean;
+  /** Data group id — objects in the same group share one item when producing. */
+  gpDataGroup?: string;
   text?: string;
   [key: string]: unknown;
+}
+
+/** Logical data group on a template page (stored on FabricScene.dataGroups). */
+export interface DataGroupDef {
+  id: string;
+  label: string;
+  memberIds: string[];
+  layoutGroupId?: string;
+  mode: "slot" | "repeat";
+  itemIndex?: number;
+  repeat?: {
+    rowHeight: number;
+    gap: number;
+    maxRows: number;
+  };
+}
+
+export interface FabricSceneWithGroups extends FabricScene {
+  dataGroups?: DataGroupDef[];
 }
 
 // ---------------------------------------------------------------------------

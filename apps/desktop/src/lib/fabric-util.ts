@@ -1,7 +1,7 @@
 import * as fabric from "fabric";
 
 /** Custom object props serialized into templates and used for binding. */
-export const CUSTOM_PROPS = ["id", "gpBind", "gpLabel", "gpListRow"] as const;
+export const CUSTOM_PROPS = ["id", "gpBind", "gpLabel", "gpListRow", "gpDataGroup"] as const;
 
 let counter = 0;
 

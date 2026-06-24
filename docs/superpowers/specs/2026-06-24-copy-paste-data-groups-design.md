@@ -1,7 +1,7 @@
 # Copy/paste thuộc tính + Nhóm dữ liệu (Data groups)
 
 - Ngày: 2026-06-24
-- Trạng thái: Đã chốt thiết kế, chờ kế hoạch triển khai
+- Trạng thái: Đã chốt, đã triển khai
 
 ## 1. Mục tiêu
 

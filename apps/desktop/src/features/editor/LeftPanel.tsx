@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Checkbox,
   ColorInput,
   Group,
   ScrollArea,
@@ -34,6 +33,7 @@ import {
 } from "@tabler/icons-react";
 
 import { getBool, getId, getStr, isTextType } from "../../lib/fabric-util.js";
+import { getObjectGroupId } from "./dataGroups.js";
 import type { EditorApi } from "./useEditor.js";
 import { BRAND_COLORS, DESIGN_SLOTS, PALETTE } from "./palette.js";
 import { pickImageDataUrl } from "./pickImage.js";
@@ -236,7 +236,8 @@ function DataFields({ ed }: { ed: EditorApi }) {
   }
   const curBind = getStr(obj, "gpBind") ?? "";
   const curLabel = getStr(obj, "gpLabel") ?? "";
-  const isRow = getBool(obj, "gpListRow");
+  const groupId = getObjectGroupId(obj);
+  const group = groupId ? ed.getDataGroups().find((g) => g.id === groupId) : undefined;
   const text = isTextType(obj);
 
   return (
@@ -247,6 +248,11 @@ function DataFields({ ed }: { ed: EditorApi }) {
       <Badge color={curBind ? "riviu" : "gray"} variant="light" size="lg">
         {curBind ? curLabel || curBind : "Chưa gán"}
       </Badge>
+      {group && (
+        <Badge color="blue" variant="light" size="sm">
+          Nhóm: {group.label}
+        </Badge>
+      )}
       <SimpleGrid cols={2} spacing="xs">
         {DESIGN_SLOTS.filter((s) =>
           text ? s.kind === "text" : s.kind === "photo",
@@ -272,14 +278,19 @@ function DataFields({ ed }: { ed: EditorApi }) {
       >
         Bỏ gán
       </Button>
-      <Checkbox
-        label="Thuộc hàng danh sách (list row)"
-        checked={isRow}
-        onChange={() => ed.toggleListRow(obj)}
-      />
+      {group && (
+        <Button
+          variant="light"
+          size="xs"
+          color="gray"
+          onClick={() => ed.removeFromDataGroup(obj)}
+        >
+          Tách khỏi nhóm «{group.label}»
+        </Button>
+      )}
       <Text c="dimmed" size="xs">
-        Đánh dấu các đối tượng tạo nên 1 dòng (tên, địa chỉ, giá, ảnh…). Bước Tạo
-        ảnh sẽ nhân dòng này theo số mục.
+        Gán slot gợi ý cho từng phần tử. Ở tab Tạo ảnh, object trong cùng nhóm dữ liệu
+        sẽ nhận thông tin của một quán/item.
       </Text>
     </Stack>
   );
@@ -301,6 +312,7 @@ function Layers({ ed }: { ed: EditorApi }) {
           {objs.map((o) => {
             const id = getId(o);
             const label = getStr(o, "gpLabel") || (o.type ?? "obj");
+            const dg = getStr(o, "gpDataGroup");
             const locked = getBool(o, "gpLocked");
             const isActive = active === o;
             return (
@@ -336,6 +348,7 @@ function Layers({ ed }: { ed: EditorApi }) {
                   c={isActive ? "riviu.7" : undefined}
                   style={{ flex: 1 }}
                 >
+                  {dg ? `[${dg}] ` : ""}
                   {label}
                 </Text>
                 {locked && (
