@@ -1,54 +1,122 @@
-import { lazy, Suspense, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { TemplateSet } from "@genposter/schema";
 
-import { TemplateBuilder } from "./TemplateBuilder.js";
+import { CanvasContextMenu } from "./CanvasContextMenu.js";
+import { ContextBar } from "./ContextBar.js";
+import { InspectorDrawer } from "./InspectorDrawer.js";
+import { LeftPanel } from "./LeftPanel.js";
+import { PageStrip } from "./PageStrip.js";
+import { RightRail } from "./RightRail.js";
+import { Toolbar } from "./Toolbar.js";
+import type { EditorApi } from "./useEditor.js";
+import "./editor.css";
 
-const PolotnoEditor = lazy(() =>
-  import("./PolotnoEditor.js").then((m) => ({ default: m.PolotnoEditor })),
-);
+const INSPECTOR_KEY = "genposter.editor.inspectorOpen";
 
-type Mode = "builder" | "polotno";
+function readInspectorOpen(): boolean {
+  try {
+    return localStorage.getItem(INSPECTOR_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
-export function EditorTab() {
-  const [mode, setMode] = useState<Mode>("builder");
-  const hasPolotnoKey = Boolean(import.meta.env.VITE_POLOTNO_KEY);
+export function EditorTab({
+  ed,
+  set,
+  pageIndex,
+  saving,
+  onBack,
+  onSave,
+  onRenameSet,
+  onSelectPage,
+  onAddPage,
+  onDuplicatePage,
+  onDeletePage,
+  onReorderPages,
+}: {
+  ed: EditorApi;
+  set: TemplateSet | null;
+  pageIndex: number;
+  saving: boolean;
+  onBack: () => void;
+  onSave: () => void;
+  onRenameSet: (name: string) => void;
+  onSelectPage: (i: number) => void;
+  onAddPage: () => void;
+  onDuplicatePage: (i: number) => void;
+  onDeletePage: (i: number) => void;
+  onReorderPages: (from: number, to: number) => void;
+}) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(readInspectorOpen);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(INSPECTOR_KEY, String(inspectorOpen));
+    } catch {
+      /* ignore */
+    }
+  }, [inspectorOpen]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !ed.ready) return;
+    const fit = () => {
+      const cw = stage.clientWidth - 48;
+      const ch = stage.clientHeight - 48;
+      if (cw < 80 || ch < 80) return;
+      ed.fitTo(cw, ch);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, [ed.ready, set?.width, set?.height]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pages = set?.pages ?? [];
+  const aspect = set ? set.width / set.height : 0.7;
+  const pageLabel = set ? `Trang ${Math.min(pageIndex + 1, pages.length)}/${pages.length}` : "";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 0px)", margin: "-28px -32px" }}>
-      <div
-        className="row"
-        style={{
-          padding: "10px 20px",
-          borderBottom: "1px solid var(--rv-border)",
-          background: "var(--rv-surface)",
-          gap: 8,
-        }}
-      >
-        <button
-          className={`btn ${mode === "builder" ? "primary" : ""}`}
-          onClick={() => setMode("builder")}
-        >
-          Trình tạo mẫu
-        </button>
-        <button
-          className={`btn ${mode === "polotno" ? "primary" : ""}`}
-          onClick={() => setMode("polotno")}
-          title={hasPolotnoKey ? "Polotno Pro" : "Cần VITE_POLOTNO_KEY trong .env"}
-        >
-          Polotno (kéo thả)
-        </button>
-        <span className="muted" style={{ marginLeft: "auto", fontSize: 12 }}>
-          1080×1350 · lưu vào <code>templates/</code>
-        </span>
+    <div className="editor">
+      <Toolbar
+        ed={ed}
+        name={set?.name ?? ""}
+        onName={onRenameSet}
+        onBack={onBack}
+        onSave={onSave}
+        saving={saving}
+        pageLabel={pageLabel}
+      />
+      <div className="editor-body">
+        <LeftPanel ed={ed} />
+        <div className="stage-column">
+          <ContextBar ed={ed} />
+          <div className="stage" ref={stageRef}>
+            <CanvasContextMenu ed={ed} />
+            <div className="stage-wrap">
+              <canvas ref={ed.canvasElRef} />
+            </div>
+          </div>
+          <InspectorDrawer
+            ed={ed}
+            opened={inspectorOpen}
+            onClose={() => setInspectorOpen(false)}
+          />
+        </div>
+        <RightRail active={inspectorOpen} onToggle={() => setInspectorOpen((o) => !o)} />
       </div>
-
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        {mode === "builder" && <TemplateBuilder />}
-        {mode === "polotno" && (
-          <Suspense fallback={<div className="muted" style={{ padding: 24 }}>Đang tải Polotno…</div>}>
-            <PolotnoEditor />
-          </Suspense>
-        )}
-      </div>
+      <PageStrip
+        pages={pages}
+        currentIndex={pageIndex}
+        aspect={aspect}
+        onSelect={onSelectPage}
+        onAdd={onAddPage}
+        onDuplicate={onDuplicatePage}
+        onDelete={onDeletePage}
+        onReorder={onReorderPages}
+      />
     </div>
   );
 }

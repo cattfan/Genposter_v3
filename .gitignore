@@ -1,32 +1,33 @@
-# Dependencies
+# deps
 node_modules/
 .pnpm-store/
 
-# Builds
+# build
 dist/
-build/
-*.tsbuildinfo
+**/dist/
 apps/desktop/src-tauri/target/
-apps/desktop/src-tauri/gen/
+**/*.tsbuildinfo
 
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-services/data-api/.venv/
+# rust
+target/
 
-# Generated output (rendered images, intermediate slide JSON)
+# local data (operator-provided, large)
+data/photos/
+data/database/
 output/
 
-# Heavy source assets - keep local, do not commit to git
-data/photos/
+# env / secrets
+.env
+.env.*
+!.env.example
 
-# Logs / OS
-*.log
+# editor / os
 .DS_Store
 Thumbs.db
+.vite/
 
-# Local env / secrets (Polotno key, etc.)
-.env
-.env.local
+# scratch
+_*.txt
+
+# brainstorm visual companion sessions
+.superpowers/

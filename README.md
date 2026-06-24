@@ -1,97 +1,91 @@
 # Genposter V3
 
-Content factory for Da Lat travel content: turn the `F&B ĐÀ LẠT` Excel database +
-the local photo library into batches of TikTok carousel images. Few operators,
-high output.
+Single desktop app (Tauri 2 + React + Vite + TypeScript) that turns an Excel
+database + a local photo library into batches of TikTok-carousel JPGs.
 
-Brand: Riviu orange `#ff6600`.
+- **Tab Thiết kế (Design)** — a Fabric.js editor (text, images, shapes, layers,
+  align/distribute, order, lock/hide, undo/redo, flip, background, data-field
+  slots). Saves pure layout templates to `templates/*.json`.
+- **Tab Tạo ảnh (Produce)** — pick a template, map each object to a data source
+  (sheet field / title / photo / static / AI), then render every slide in-app
+  with Fabric (WYSIWYG) to `output/`. Presets are saved to `recipes/*.yaml`,
+  fully separate from templates.
 
-## Architecture (short)
+## Architecture
 
 ```
-Excel (data/database/fnb_dalat.xlsx)  +  Photos (data/photos/<group>/<place>/*)
-        |                                         |
-        v                                         v
-   services/data-api  (Python / FastAPI)  --> builds slide data JSON
-        |
-        v
-   services/render    (Node)  --> binds template + data -> JPG into output/
-        ^
-        |
-   templates/*.json   (authored in apps/desktop Polotno editor / Genposter schema)
+apps/desktop        Tauri app (all UI, editor, data, render)
+  src/lib           excel (SheetJS), mapping (yaml), photos, fonts,
+                    bind, build, render (Fabric -> JPG), template/recipe IO
+  src/features      editor/ (Tab 1), produce/ (Tab 2), settings/
+  src-tauri         Rust shell (fs + dialog + shell plugins only)
+packages/schema     shared TypeScript contracts (Template/Recipe/Slide/Binding)
+data/               mapping.yaml, database/*.xlsx, photos/<group>/, brand/fonts/
+templates/ recipes/ output/
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detail.
-
-## Repo layout
-
-- `data/` consolidated data (see `data/mapping.yaml`)
-  - `database/fnb_dalat.xlsx`, `photos/<group>/`, `templates_ref/<series>/`, `brand/`
-- `apps/desktop/` Tauri 2 + React desktop app (Design / Data / Produce / Jobs tabs)
-- `services/data-api/` Python FastAPI: read Excel, resolve photos, paginate slides
-- `services/render/` Node renderer + lightweight SQLite job queue
-- `packages/theme/` shared brand tokens (`#ff6600`) for app + templates
-- `packages/template-schema/` shared TypeScript types (templates, recipes, slides)
-- `templates/` saved templates (JSON)
-- `recipes/` batch presets (YAML)
-- `output/` generated images
+No Python/Node sidecars. Excel is read with SheetJS, files via the Tauri fs
+plugin, photos scanned via the fs plugin, rendering via Fabric `StaticCanvas`.
 
 ## Prerequisites
 
-- Node >= 20 and pnpm (`npm i -g pnpm`)
-- Python >= 3.11
-- Rust + Cargo (only for building the Tauri desktop app)
+- Node 20+, pnpm 9+
+- Rust toolchain + the Tauri 2 system deps (WebView2 on Windows — already
+  present if you've run a Tauri app before).
 
 ## Setup
 
 ```bash
-# JS workspaces
 pnpm install
-
-# Python data-api
-cd services/data-api
-python -m venv .venv
-.venv\Scripts\activate        # Windows (PowerShell: .venv\Scripts\Activate.ps1)
-pip install -r requirements.txt
 ```
 
-## Run the end-to-end smoke test (no servers, no Polotno key needed)
+### One-time: app icons (required by Tauri build)
+
+Tauri needs icons referenced in `apps/desktop/src-tauri/tauri.conf.json`.
+Generate them from any square PNG (≥512px):
 
 ```bash
-pnpm smoke
+pnpm --filter @genposter/desktop tauri icon path/to/logo.png
 ```
 
-This builds slides for the sample recipe `recipes/todo_list_an_toi.yaml` and
-renders JPGs into `output/` using the built-in renderer.
+This writes `src-tauri/icons/*` (32x32.png, 128x128.png, icon.ico, …).
 
-## Run (recommended — starts data-api + render + desktop app)
+### Restore source data (lost when the project was deleted)
+
+- `data/database/fnb_dalat.xlsx` — the Excel database (sheets per `mapping.yaml`).
+- `data/photos/<group>/` — the 9 photo groups listed in `mapping.yaml`
+  (`quan_an`, `cafe`, `homestay`, `check_in`, `khu_du_lich`, `dich_vu`,
+  `choi_dem`, `hoat_dong`, `hinh_nen`).
+- `data/brand/fonts/` — optional Be Vietnam Pro `.ttf` (Vietnamese-complete):
+  `BeVietnamPro-Regular.ttf`, `-Medium.ttf`, `-SemiBold.ttf`, `-Bold.ttf`,
+  `-Italic.ttf`. Montserrat (Bold/ExtraBold) is already present for headings.
+
+If the project root isn't `C:/Users/cattfan/Desktop/Genposter_V3`, set it in the
+app via the ⚙ Settings dialog.
+
+## Run
 
 ```bash
-pnpm dev
-# or
-pnpm app:tauri
+pnpm dev        # tauri dev (desktop window)
+# or, browser-only UI preview (no fs/render): pnpm web
 ```
 
-This launches:
-- **data-api** on `http://127.0.0.1:8756` (Excel + templates)
-- **render** on `http://127.0.0.1:8777` (batch JPG export)
-- **Tauri desktop app** with tabs Sản xuất / Dữ liệu / **Thiết kế** / Lịch sử
-
-Sidecars only (without opening the app):
+## Build
 
 ```bash
-pnpm sidecars
+pnpm build      # tauri build (installer in src-tauri/target/release/bundle)
 ```
 
-## Adding a new template
+## Photo matching
 
-1. Design in the Design tab (Polotno) or copy an existing `templates/*.json`.
-2. Mark dynamic text with `{{field}}` and image slots with a `bind` key.
-3. Add a recipe in `recipes/` pointing at the sheet + template.
-4. Preview a slide, then batch.
+`src/lib/photos.ts` resolves photos per item heuristically: by sub-folder name,
+then by filename containing the item's `photo_key` (`Link_drive`) or name, then a
+deterministic fallback slice. Adjust there if your library is organized
+differently.
 
-## Notes
+## AI text (optional)
 
-- `data/photos/` (~7400 images) is git-ignored; keep it locally.
-- Polotno SDK requires a commercial license key (`POLOTNO_KEY`) for the editor
-  and for `polotno-node` rendering. The built-in renderer works without it.
+A binding token `ai:<prompt>` is supported. Prompts may use `{{item.name}}`,
+`{{item.desc}}`, `{{title}}`, etc. Configure an OpenAI-compatible Base URL + API
+key + model in ⚙ Settings. With no key, AI bindings render empty (the rest works
+unchanged).

@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Genposter V3",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.riviu.genposter",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeDevCommand": "pnpm --filter @genposter/desktop dev",
     "beforeBuildCommand": "pnpm --filter @genposter/desktop build"
   },
@@ -14,14 +14,18 @@
       {
         "label": "main",
         "title": "Genposter V3",
-        "width": 1280,
-        "height": 860,
-        "minWidth": 1024,
-        "minHeight": 700
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 720
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
   },
   "bundle": {

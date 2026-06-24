@@ -1,10 +1,11 @@
-// Prevents an extra console window on Windows in release builds.
+// Prevents an extra console window on Windows in release.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .run(tauri::generate_context!())
-        .expect("error while running Genposter");
+        .expect("error while running tauri application");
 }
