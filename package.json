@@ -10,7 +10,8 @@
     "dev": "pnpm --filter @genposter/desktop tauri dev",
     "web": "pnpm --filter @genposter/desktop dev",
     "build": "pnpm --filter @genposter/desktop tauri build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "fetch:fonts": "node scripts/fetch-brand-fonts.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
