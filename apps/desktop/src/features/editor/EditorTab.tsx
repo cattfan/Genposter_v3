@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TemplateSet } from "@genposter/schema";
 
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip } from "./PageStrip.js";
 import { PropertiesPanel } from "./PropertiesPanel.js";
+import { RightRail } from "./RightRail.js";
 import { Toolbar } from "./Toolbar.js";
 import type { EditorApi } from "./useEditor.js";
 import "./editor.css";
@@ -36,6 +37,7 @@ export function EditorTab({
   onReorderPages: (from: number, to: number) => void;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -64,12 +66,15 @@ export function EditorTab({
       />
       <div className="editor-body">
         <LeftPanel ed={ed} />
-        <div className="stage" ref={stageRef}>
-          <div className="stage-wrap">
-            <canvas ref={ed.canvasElRef} />
+        <div className="stage-column">
+          <div className="stage" ref={stageRef}>
+            <div className="stage-wrap">
+              <canvas ref={ed.canvasElRef} />
+            </div>
           </div>
+          {inspectorOpen && <PropertiesPanel ed={ed} />}
         </div>
-        <PropertiesPanel ed={ed} />
+        <RightRail active={inspectorOpen} onToggle={() => setInspectorOpen((o) => !o)} />
       </div>
       <PageStrip
         pages={pages}
