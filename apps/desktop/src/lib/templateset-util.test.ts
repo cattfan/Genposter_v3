@@ -25,6 +25,9 @@ describe("nextUntitledName", () => {
   it("skips taken numbers", () => {
     expect(nextUntitledName(["Mẫu mới (1)", "Mẫu mới (2)"])).toBe("Mẫu mới (3)");
   });
+  it("fills the smallest free gap", () => {
+    expect(nextUntitledName(["Mẫu mới (1)", "Mẫu mới (3)"])).toBe("Mẫu mới (2)");
+  });
 });
 
 describe("normalizeSet", () => {
