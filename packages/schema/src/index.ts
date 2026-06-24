@@ -24,6 +24,24 @@ export interface GenposterTemplate {
   updatedAt?: string;
 }
 
+export interface TemplatePage {
+  id: string;
+  name?: string;
+  scene: FabricScene;
+  /** Small JPEG data URL preview, regenerated on save. */
+  thumbnail?: string;
+}
+
+export interface TemplateSet {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  pages: TemplatePage[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /** Loose shape of a Fabric serialized scene; objects carry custom keys below. */
 export interface FabricScene {
   version?: string;
@@ -206,3 +224,6 @@ export const SLIDE_BIND_OPTIONS: { bind: string; label: string }[] = [
 export const CANVAS_W = 1080;
 export const CANVAS_H = 1350;
 export const BRAND_ORANGE = "#ff6600";
+
+export const DEFAULT_TEMPLATE_W = 1588;
+export const DEFAULT_TEMPLATE_H = 2248;
