@@ -28,3 +28,6 @@ Thumbs.db
 
 # scratch
 _*.txt
+
+# brainstorm visual companion sessions
+.superpowers/
