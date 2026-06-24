@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { TemplateSet } from "@genposter/schema";
 
+import { CanvasContextMenu } from "./CanvasContextMenu.js";
 import { ContextBar } from "./ContextBar.js";
 import { InspectorDrawer } from "./InspectorDrawer.js";
 import { LeftPanel } from "./LeftPanel.js";
@@ -61,7 +62,12 @@ export function EditorTab({
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !ed.ready) return;
-    const fit = () => ed.fitTo(stage.clientWidth - 48, stage.clientHeight - 48);
+    const fit = () => {
+      const cw = stage.clientWidth - 48;
+      const ch = stage.clientHeight - 48;
+      if (cw < 80 || ch < 80) return;
+      ed.fitTo(cw, ch);
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(stage);
@@ -86,8 +92,9 @@ export function EditorTab({
       <div className="editor-body">
         <LeftPanel ed={ed} />
         <div className="stage-column">
+          <ContextBar ed={ed} />
           <div className="stage" ref={stageRef}>
-            <ContextBar ed={ed} />
+            <CanvasContextMenu ed={ed} />
             <div className="stage-wrap">
               <canvas ref={ed.canvasElRef} />
             </div>

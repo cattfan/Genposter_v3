@@ -145,6 +145,7 @@ export function useEditor(): EditorApi {
       height: sizeRef.current.h,
       backgroundColor: "#ffffff",
       preserveObjectStacking: true,
+      stopContextMenu: true,
     });
     canvasRef.current = canvas;
 

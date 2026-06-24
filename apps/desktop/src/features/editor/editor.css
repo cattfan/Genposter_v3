@@ -24,6 +24,33 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.stage-column .stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.context-bar-strip {
+  flex-shrink: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  overflow-x: auto;
+}
+
+.context-bar {
+  background: #fff;
+  max-width: 100%;
+}
+
+.text-context-bar {
+  max-width: 100%;
 }
 
 .panel.right-rail {
@@ -55,14 +82,6 @@
   justify-content: center;
   padding: 24px;
   min-width: 0;
-}
-.context-bar {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  background: #fff;
 }
 .stage-wrap {
   box-shadow: var(--rv-shadow-md);
