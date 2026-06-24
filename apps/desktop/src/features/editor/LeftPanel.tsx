@@ -35,7 +35,7 @@ import {
 
 import { getBool, getId, getStr, isTextType } from "../../lib/fabric-util.js";
 import type { EditorApi } from "./useEditor.js";
-import { BRAND_COLORS, DESIGN_SLOTS, PALETTE, TEXT_STYLE_PRESETS } from "./palette.js";
+import { BRAND_COLORS, DESIGN_SLOTS, PALETTE } from "./palette.js";
 import { pickImageDataUrl } from "./pickImage.js";
 
 type Sub = "add" | "upload" | "bg" | "data" | "layers";
@@ -116,41 +116,26 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
         </Tabs.List>
 
         <Tabs.Panel value="add">
-          <Stack gap="md">
-            <SimpleGrid cols={2} spacing="xs">
-              {ADD_ITEMS.map((it) => (
-                <Button
-                  key={it.label}
-                  variant="default"
-                  h={76}
-                  onClick={() => it.run(ed)}
-                  leftSection={<it.Icon size={24} />}
-                  styles={{
-                    inner: { flexDirection: "column", gap: 8 },
-                    section: { marginRight: 0 },
-                    label: { fontSize: 12, fontWeight: 600 },
-                  }}
-                >
-                  {it.label}
-                </Button>
-              ))}
-            </SimpleGrid>
-            <Text size="xs" fw={600} c="dimmed">
-              Style nhanh
-            </Text>
-            <SimpleGrid cols={1} spacing="xs">
-              {TEXT_STYLE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.label}
-                  variant="light"
-                  size="sm"
-                  onClick={() => ed.addTextPreset(preset)}
-                  styles={{ label: { fontWeight: 600 } }}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </SimpleGrid>
+          <Stack gap={4}>
+            {ADD_ITEMS.map((it) => (
+              <Button
+                key={it.label}
+                variant="default"
+                fullWidth
+                h={44}
+                px="sm"
+                justify="flex-start"
+                onClick={() => it.run(ed)}
+                leftSection={<it.Icon size={20} stroke={1.5} />}
+                styles={{
+                  inner: { justifyContent: "flex-start", gap: 10 },
+                  section: { marginRight: 0 },
+                  label: { fontSize: 13, fontWeight: 600 },
+                }}
+              >
+                {it.label}
+              </Button>
+            ))}
           </Stack>
         </Tabs.Panel>
 

@@ -8,6 +8,7 @@ import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip } from "./PageStrip.js";
 import { RightRail } from "./RightRail.js";
 import { Toolbar, type SaveStatus } from "./Toolbar.js";
+import { useStagePointer } from "./useStagePointer.js";
 import type { EditorApi } from "./useEditor.js";
 import "./editor.css";
 
@@ -61,6 +62,8 @@ export function EditorTab({
     }
   }, [inspectorOpen]);
 
+  useStagePointer(stageRef, ed);
+
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !ed.ready) return;
@@ -74,7 +77,7 @@ export function EditorTab({
     const ro = new ResizeObserver(fit);
     ro.observe(stage);
     return () => ro.disconnect();
-  }, [ed.ready, set?.width, set?.height]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ed.ready, set?.width, set?.height, inspectorOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pages = set?.pages ?? [];
   const aspect = set ? set.width / set.height : 0.7;
@@ -92,7 +95,7 @@ export function EditorTab({
         onRetrySave={onRetrySave}
         pageLabel={pageLabel}
       />
-      <div className="editor-body">
+      <div className={`editor-body${inspectorOpen ? " inspector-open" : ""}`}>
         <LeftPanel ed={ed} />
         <div className="stage-column">
           <ContextBar ed={ed} />
@@ -102,12 +105,8 @@ export function EditorTab({
               <canvas ref={ed.canvasElRef} />
             </div>
           </div>
-          <InspectorDrawer
-            ed={ed}
-            opened={inspectorOpen}
-            onClose={() => setInspectorOpen(false)}
-          />
         </div>
+        {inspectorOpen && <InspectorDrawer ed={ed} onClose={() => setInspectorOpen(false)} />}
         <RightRail active={inspectorOpen} onToggle={() => setInspectorOpen((o) => !o)} />
       </div>
       <PageStrip
