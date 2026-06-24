@@ -12,7 +12,7 @@ Cải thiện **bố trí UI tab Thiết kế** (trình sửa đa trang đã có
 
 - Canvas poster dọc (1588×2248) có không gian ngang tối đa; công cụ hay dùng gần tay.
 - Inspector không chiếm chỗ khi không cần; căn chỉnh/nhân bản/xóa không bắt mở panel.
-- Dropdown font có **≥12 family** thực sự load được, hỗ trợ dấu tiếng Việt; preview đúng kiểu chữ trên canvas + thumbnail + Tạo ảnh.
+- Dropdown font có **≥30 family Việt hoá** thực sự load được (tier A+B), hỗ trợ dấu tiếng Việt; preview đúng kiểu chữ trên canvas + thumbnail + Tạo ảnh.
 
 ## 2. Quyết định đã chốt (brainstorm)
 
@@ -119,39 +119,116 @@ Không thay đổi hành vi hay vị trí.
 ### 5.2 Nguyên tắc
 
 1. **Offline-first:** mọi font dùng trên canvas phải có file `.ttf` trong `data/brand/fonts/` và đăng ký qua `ensureFonts()`.
-2. **Tiếng Việt:** chỉ đưa vào catalog font có subset Vietnamese đầy đủ (Google Fonts `vietnamese` axis hoặc đã kiểm tra glyph).
-3. **Danh sách UI = danh sách đã load:** `availableFamilies()` chỉ trả family đã có trong `AVAILABLE` sau `ensureFonts()`.
-4. **Nhóm trực quan** trong dropdown (Mantine `Select` với `group`):
+2. **Việt hoá là tiêu chí số 1:** chỉ đưa vào catalog font có **subset `vietnamese`** trên Google Fonts (hoặc đã test chuỗi mẫu `ÁàẢãẠăẰằẢẵẠâẦầẨẫẬđÊềỂễỆôỐốỔỗỘơỜờỞỡỢưỪừỬữỰ`).
+3. **Phân tier** — hiển thị badge trong dropdown:
+   - **Tier A — VN đầy đủ:** dùng thoải mái cho nội dung tiếng Việt dài.
+   - **Tier B — Tiêu đề VN:** sans condensed / display; vẫn có glyph VN nhưng nên dùng cho headline ngắn.
+   - **Tier C — Trang trí:** script/handwriting; tooltip *“Nên dùng cho tên thương hiệu / cụm ngắn”*.
+4. **Danh sách UI = danh sách đã load:** `availableFamilies()` chỉ trả family có ≥1 file load thành công.
+5. **Nhóm dropdown** (Mantine `Select` / `Combobox` với `group`):
+   - **Sans — nội dung (VN)**
+   - **Sans — tiêu đề & display (VN)**
+   - **Serif (VN)**
+   - **Bo tròn / thân thiện (VN)**
+   - **Trang trí & chữ tay (VN)**
+6. **Trọng số tối thiểu:** Regular (400) + Bold (700) mỗi family; Be Vietnam Pro thêm Medium/SemiBold/Italic như hiện tại.
+7. **Không liệt kê font ảo** (Arial, Georgia…) nếu chưa bundle file.
 
-   - **Sans — nội dung:** Be Vietnam Pro, Inter, Noto Sans, Open Sans, Roboto, Source Sans 3
-   - **Sans — tiêu đề:** Montserrat, Oswald, Lexend, Nunito, Quicksand
-   - **Serif:** Merriweather, Lora, Playfair Display
-   - **Trang trí:** Dancing Script, Pacifico *(chỉ dùng ngắn / tiếng Anh số; ghi chú trong UI)*
+### 5.3 Catalog Việt hoá (ship trong repo)
 
-5. **Trọng số tối thiểu mỗi family:** Regular (400) + Bold (700); thêm Italic nếu có sẵn file.
+Nguồn: [Google Fonts](https://fonts.google.com) — lọc **Languages → Vietnamese**, license OFL.  
+Script tải hàng loạt: `scripts/fetch-brand-fonts.mjs` (implement trong đợt code).
 
-### 5.3 Catalog cụ thể (ship trong repo)
+#### Tier A — Sans nội dung (18 family)
 
-| Family | File (ví dụ) | Ghi chú |
-|--------|----------------|---------|
-| Be Vietnam Pro | `BeVietnamPro-{Regular,Medium,SemiBold,Bold,Italic}.ttf` | Mặc định app |
-| Inter | `Inter-Regular.ttf`, `Inter-Bold.ttf` | Body hiện đại |
-| Noto Sans | `NotoSans-Regular.ttf`, `NotoSans-Bold.ttf` | Unicode/VN tốt |
-| Open Sans | `OpenSans-Regular.ttf`, `OpenSans-Bold.ttf` | Đọc dài |
-| Roboto | `Roboto-Regular.ttf`, `Roboto-Bold.ttf` | Phổ biến |
-| Source Sans 3 | `SourceSans3-Regular.ttf`, `SourceSans3-Bold.ttf` | Báo cáo |
-| Montserrat | đã có Bold/ExtraBold | Tiêu đề; hạn chế dấu VN |
-| Oswald | `Oswald-Bold.ttf` | Tiêu đề condensed |
-| Lexend | `Lexend-Regular.ttf`, `Lexend-Bold.ttf` | Dễ đọc |
-| Nunito | `Nunito-Regular.ttf`, `Nunito-Bold.ttf` | Bo tròn |
-| Quicksand | `Quicksand-Regular.ttf`, `Quicksand-Bold.ttf` | Thân thiện |
-| Merriweather | `Merriweather-Regular.ttf`, `Merriweather-Bold.ttf` | Serif body |
-| Lora | `Lora-Regular.ttf`, `Lora-Bold.ttf` | Serif cổ điển |
-| Playfair Display | `PlayfairDisplay-Bold.ttf` | Serif display |
-| Dancing Script | `DancingScript-Regular.ttf` | Script |
-| Pacifico | `Pacifico-Regular.ttf` | Script logo |
+| Family | Weights ship | Vai trò poster |
+|--------|--------------|----------------|
+| **Be Vietnam Pro** | 400, 500, 600, 700, italic 400 | Mặc định; font “nhà” |
+| Inter | 400, 700 | Body hiện đại, sạch |
+| Noto Sans | 400, 700 | Unicode/VN chuẩn nhất |
+| Open Sans | 400, 700 | Đoạn văn dài |
+| Roboto | 400, 700 | Quen thuộc, menu/giá |
+| Source Sans 3 | 400, 700 | Báo cáo, danh sách |
+| IBM Plex Sans | 400, 700 | Doanh nghiệp |
+| Fira Sans | 400, 700 | Humanist, dễ đọc |
+| Barlow | 400, 700 | Gọn, poster sáng |
+| Manrope | 400, 700 | Geometric hiện đại |
+| DM Sans | 400, 700 | UI / nhãn |
+| Work Sans | 400, 700 | Tương phản tốt |
+| Rubik | 400, 700 | Hơi tròn, thân thiện |
+| Mulish | 400, 700 | Minimal |
+| Ubuntu | 400, 700 | Nổi bật vừa phải |
+| Cabin | 400, 700 | Humanist |
+| Public Sans | 400, 700 | Chính phủ / tin cậy |
+| Plus Jakarta Sans | 400, 700 | Trendy, startup |
 
-Tổng **~16 family**, **~30 file .ttf** (ước lượng). Nguồn: [Google Fonts](https://fonts.google.com) (OFL). Thêm script tải hoặc hướng dẫn trong `data/brand/fonts/README.md`.
+#### Tier A — Serif nội dung (8 family)
+
+| Family | Weights ship | Vai trò |
+|--------|--------------|---------|
+| Noto Serif | 400, 700 | Serif VN an toàn nhất |
+| Merriweather | 400, 700 | Body serif ấm |
+| Lora | 400, 700 | Cổ điển |
+| Source Serif 4 | 400, 700 | Báo / tạp chí |
+| IBM Plex Serif | 400, 700 | Formal |
+| PT Serif | 400, 700 | Báo chí |
+| Literata | 400, 700 | Sách / đoạn dài |
+| Roboto Slab | 400, 700 | Slab headline + body |
+
+#### Tier B — Tiêu đề & display (10 family)
+
+| Family | Weights ship | Ghi chú |
+|--------|--------------|---------|
+| Lexend | 400, 700 | Tiêu đề dễ đọc |
+| Oswald | 400, 700 | Condensed mạnh |
+| Barlow Condensed | 400, 700 | Poster dọc hẹp ngang |
+| Anton | 400 | All-caps display |
+| Exo 2 | 400, 700 | Công nghệ / sale |
+| Josefin Sans | 400, 700 | Vintage nhẹ |
+| Raleway | 400, 700 | Elegant sans |
+| Signika | 400, 700 | Tiêu đề ấm |
+| Archivo | 400, 700 | Grotesk display |
+| Montserrat | 700, 800 | Đã có; tier B vì một số dấu VN yếu — tooltip |
+
+#### Tier B — Bo tròn / thân thiện (6 family)
+
+| Family | Weights ship | Ghi chú |
+|--------|--------------|---------|
+| Nunito | 400, 700 | Tròn, F&B |
+| Quicksand | 400, 700 | Mềm |
+| Comfortaa | 400, 700 | Logo nhỏ |
+| M PLUS Rounded 1c | 400, 700 | Nhật-VN, tròn |
+| Baloo 2 | 400, 700 | Vui, trẻ em |
+| Varela Round | 400 | Pill label |
+
+#### Tier C — Trang trí & chữ tay (6 family)
+
+| Family | Weights ship | Ghi chú UI |
+|--------|--------------|------------|
+| Caveat | 400, 700 | Chữ tay VN ổn |
+| Satisfy | 400 | Chữ ký / slogan ngắn |
+| Allison | 400 | Script mảnh |
+| Shantell Sans | 400, 700 | Handwritten vui |
+| Patrick Hand | 400 | Ghi chú tay |
+| Dancing Script | 400 | Script; tooltip cụm ngắn |
+
+**Tổng catalog:** **48 family**, **~96 file .ttf** (Regular + Bold; Be Vietnam Pro ~7 file).  
+**Mục tiêu dropdown sau load:** ≥ **40 family** (cho phép vài file thiếu khi dev clone mỏng).
+
+#### Quy ước đặt tên file
+
+```
+{FamilyNormalized}-{WeightLabel}.ttf
+```
+
+Ví dụ: `BeVietnamPro-Bold.ttf`, `NotoSans-Regular.ttf`, `BarlowCondensed-Bold.ttf`.  
+`FONT_CATALOG` map `file → family + weight + style + tier + group`.
+
+#### Script & README
+
+- `scripts/fetch-brand-fonts.mjs`: tải từ Google Fonts API theo danh sách catalog; idempotent.
+- `data/brand/fonts/README.md`: hướng dẫn chạy script, bản quyền OFL, chuỗi test VN.
+- Font **không** commit vào git nếu repo quá nặng → tùy chọn `.gitattributes` + Git LFS; spec ưu tiên **ship đủ tier A** (~52 file) bắt buộc, tier B/C tải thêm qua script.
 
 ### 5.4 Thay đổi code
 
@@ -173,8 +250,10 @@ Tổng **~16 family**, **~30 file .ttf** (ước lượng). Nguồn: [Google Fon
 
 ### 5.5 Kích thước & hiệu năng
 
-- Load lazy: `ensureFonts()` chạy một lần khi vào editor (như hiện tại). Chấp nhận ~2–5 MB tổng font cho desktop.
-- Nếu file thiếu: bỏ qua im lặng (giữ hành vi hiện tại), family không xuất hiện trong dropdown.
+- `ensureFonts()` chạy một lần khi vào editor; đăng ký tuần tự (giữ logic hiện tại, tránh spike RAM).
+- Ước lượng **~8–15 MB** toàn bộ tier A+B+C — chấp nhận được cho app desktop offline.
+- Nếu file thiếu: bỏ qua im lặng; family không vào dropdown.
+- Combobox font: **searchable** bắt buộc (48 mục — không cuộn mù).
 
 ## 6. Kiến trúc component (sau refactor)
 
@@ -203,17 +282,19 @@ Tổng **~16 family**, **~30 file .ttf** (ước lượng). Nguồn: [Google Fon
 
 **Font**
 
-- [ ] Dropdown liệt kê ≥12 family sau khi file ship đủ.
-- [ ] Gõ tiếng Việt có dấu trên canvas với Be Vietnam Pro, Noto Sans, Inter.
-- [ ] Thumbnail trang và Tạo ảnh render đúng font đã chọn.
-- [ ] Family thiếu file không xuất hiện trong list.
+- [ ] Sau `pnpm fetch:fonts` (hoặc script tương đương), dropdown ≥ **40 family**.
+- [ ] Chuỗi test VN hiển thị đúng trên canvas với mẫu tier A (Be Vietnam Pro, Noto Sans, Inter, Noto Serif, Barlow Condensed).
+- [ ] Tier C hiện tooltip cảnh báo; không crash khi gõ đoạn dài.
+- [ ] Thumbnail + Tạo ảnh khớp font canvas.
+- [ ] Không còn Arial/Georgia trong list nếu chưa bundle.
 
 ## 8. Rủi ro & giảm thiểu
 
 | Rủi ro | Giảm thiểu |
 |--------|-------------|
-| Repo phình vì .ttf | Chỉ Regular+Bold; script tải tùy chọn; git LFS nếu cần |
-| Montserrat / script thiếu dấu VN | Nhóm riêng + tooltip trong dropdown |
+| Repo phình (~15 MB font) | Script tải; ship tier A trong repo, B+C qua `fetch:fonts`; Git LFS nếu cần |
+| Montserrat / script tier C | Tier badge + tooltip; không dùng cho body dài |
+| Dropdown 48 mục khó tìm | Combobox search + group + preview font |
 | Drawer che canvas | Overlay + đóng nhanh; không bắt buộc mở liên tục |
 
 ## 9. Thứ tự triển khai gợi ý (cho writing-plans)
@@ -221,5 +302,6 @@ Tổng **~16 family**, **~30 file .ttf** (ước lượng). Nguồn: [Google Fon
 1. Layout shell: grid + toolbar thu gọn + RightRail stub.
 2. ContextBar + gỡ Sắp xếp khỏi PropertiesPanel.
 3. InspectorDrawer overlay + persist + Esc.
-4. Font catalog + tải file + `availableFamilies` + Combobox preview.
-5. Kiểm thử thủ công end-to-end.
+4. `fetch-brand-fonts.mjs` + catalog 48 family + Combobox search/preview/tier badge.
+5. Kiểm thử chuỗi VN + thumbnail + Tạo ảnh.
+6. Kiểm thử layout end-to-end.
