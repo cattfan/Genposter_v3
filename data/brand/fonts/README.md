@@ -1,13 +1,20 @@
 # Brand fonts
 
-Used by the renderer and templates so generated images stay on-brand.
+Drop `.ttf` files here. The app auto-registers these families (missing files are
+skipped) and waits for `document.fonts.ready` before rendering.
 
-- **Be Vietnam Pro** (Regular / SemiBold / Bold) - primary, full Vietnamese
-  diacritic support. Use for body and most content.
-- **Montserrat** (Bold / ExtraBold) - headings / titles.
+Recommended (Vietnamese-complete) for titles/body:
 
-Both are licensed under the SIL Open Font License 1.1 (from Google Fonts).
+- `BeVietnamPro-Regular.ttf` (400)
+- `BeVietnamPro-Medium.ttf` (500)
+- `BeVietnamPro-SemiBold.ttf` (600)
+- `BeVietnamPro-Bold.ttf` (700)
+- `BeVietnamPro-Italic.ttf` (italic 400)
 
-Note: a brush-script accent similar to the "Riviu" logo is intentionally not used
-for Vietnamese content because most script fonts lack diacritics. Reserve scripts
-for Latin-only accents (e.g. a "Da Lat" badge).
+Already present (headings):
+
+- `Montserrat-Bold.ttf` (700)
+- `Montserrat-ExtraBold.ttf` (800)
+
+> Note: Montserrat lacks some Vietnamese diacritics — prefer Be Vietnam Pro for
+> Vietnamese text.

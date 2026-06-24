@@ -1,29 +1,18 @@
 {
   "name": "genposter",
   "private": true,
-  "version": "0.1.0",
-  "description": "Genposter V3 - content factory: Excel + photo library -> batch TikTok carousel images",
-  "packageManager": "pnpm@11.1.2",
+  "version": "0.2.0",
+  "description": "Genposter V3 - content factory: Fabric design editor + Excel data binding -> batch TikTok carousel JPGs",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "node scripts/dev-all.mjs",
-    "app": "pnpm --filter @genposter/desktop dev",
-    "app:tauri": "node scripts/dev-all.mjs",
-    "sidecars": "node scripts/start-sidecars.mjs",
-    "render:serve": "pnpm --filter @genposter/render serve",
-    "render:cli": "pnpm --filter @genposter/render cli",
-    "smoke": "node scripts/smoke.mjs"
+    "dev": "pnpm --filter @genposter/desktop tauri dev",
+    "web": "pnpm --filter @genposter/desktop dev",
+    "build": "pnpm --filter @genposter/desktop tauri build",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "better-sqlite3",
-      "@napi-rs/canvas"
-    ]
   }
 }
