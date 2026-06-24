@@ -1,8 +1,11 @@
 import type { GenposterTemplate } from "@genposter/schema";
 
-import { ensureDir, exists, readDir, readText, writeText } from "./fsx.js";
-import { join, paths, slugify } from "./paths.js";
+import { ensureDir, writeText } from "./fsx.js";
+import { paths, slugify } from "./paths.js";
+import { listTemplateSets, loadTemplateSet } from "./templateset-io.js";
+import { makePageRef, parsePageRef } from "./templateset-util.js";
 
+/** A flattened page entry the Produce tab can pick + render. id = "<setId>::<pageId>". */
 export interface TemplateSummary {
   id: string;
   name: string;
@@ -12,34 +15,40 @@ export interface TemplateSummary {
 }
 
 export async function listTemplates(): Promise<TemplateSummary[]> {
-  const dir = paths.templatesDir();
-  if (!(await exists(dir))) return [];
-  const entries = await readDir(dir);
+  const sets = await listTemplateSets();
   const out: TemplateSummary[] = [];
-  for (const e of entries) {
-    if (!e.isFile || !e.name.endsWith(".json")) continue;
-    try {
-      const t = JSON.parse(await readText(join(dir, e.name))) as GenposterTemplate;
+  for (const s of sets) {
+    const n = s.pages.length;
+    s.pages.forEach((p, k) => {
       out.push({
-        id: t.id ?? e.name.replace(/\.json$/, ""),
-        name: t.name ?? e.name.replace(/\.json$/, ""),
-        width: t.width,
-        height: t.height,
-        updatedAt: t.updatedAt,
+        id: makePageRef(s.id, p.id),
+        name: `${s.name} · ${p.name ?? `Trang ${k + 1}`} (${k + 1}/${n})`,
+        width: s.width,
+        height: s.height,
+        updatedAt: s.updatedAt,
       });
-    } catch {
-      // skip invalid file
-    }
+    });
   }
-  out.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
   return out;
 }
 
-export async function loadTemplate(id: string): Promise<GenposterTemplate> {
-  const text = await readText(paths.template(id));
-  return JSON.parse(text) as GenposterTemplate;
+export async function loadTemplate(ref: string): Promise<GenposterTemplate> {
+  const { setId, pageId } = parsePageRef(ref);
+  const set = await loadTemplateSet(setId);
+  const page = (pageId ? set.pages.find((p) => p.id === pageId) : null) ?? set.pages[0]!;
+  return {
+    id: ref,
+    name: set.name,
+    width: set.width,
+    height: set.height,
+    scene: page.scene,
+  };
 }
 
+/**
+ * Legacy single-file save. Kept temporarily so the current EditorTab compiles;
+ * it will be removed when EditorTab is replaced by the multi-page editor.
+ */
 export async function saveTemplate(tpl: GenposterTemplate): Promise<string> {
   const id = slugify(tpl.id || tpl.name);
   const toSave: GenposterTemplate = { ...tpl, id, updatedAt: new Date().toISOString() };
