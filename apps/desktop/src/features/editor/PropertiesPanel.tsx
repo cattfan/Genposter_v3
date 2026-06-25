@@ -118,12 +118,12 @@ export function PropertiesPanel({
   return (
     <PanelShell embedded={embedded}>
       <Group gap="xs" mb="sm">
-        <Tooltip label="Sao chép style (Ctrl+Shift+C)" withArrow>
+        <Tooltip label="Sao chép style (Ctrl+C)" withArrow>
           <ActionIcon variant="default" size="lg" onClick={() => ed.copyStyle()}>
             <IconBrush size={18} />
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Dán style (Ctrl+Shift+V)" withArrow>
+        <Tooltip label="Dán style (Ctrl+V)" withArrow>
           <ActionIcon
             variant="default"
             size="lg"

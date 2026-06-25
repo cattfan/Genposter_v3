@@ -1,5 +1,4 @@
 import * as fabric from "fabric";
-import { Paper } from "@mantine/core";
 
 import { isTextType } from "../../lib/fabric-util.js";
 import { TextContextBar } from "./TextContextBar.js";
@@ -12,11 +11,7 @@ export function ContextBar({ ed }: { ed: EditorApi }) {
 
   return (
     <div className="context-bar-strip">
-      {isText && (
-        <Paper className="context-bar" shadow="sm" radius="md" p={4} withBorder>
-          <TextContextBar ed={ed} text={obj as fabric.Textbox} />
-        </Paper>
-      )}
+      {isText && <TextContextBar ed={ed} text={obj as fabric.Textbox} />}
     </div>
   );
 }

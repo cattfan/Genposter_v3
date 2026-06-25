@@ -12,6 +12,7 @@ import { ensureFonts } from "../../lib/fonts.js";
 import {
   CUSTOM_PROPS,
   getId,
+  isTextType,
   placeholderDataUrl,
   setProp,
 } from "../../lib/fabric-util.js";
@@ -91,6 +92,9 @@ export interface EditorApi {
   copyStyle: () => boolean;
   pasteStyle: () => boolean;
   canPasteStyle: () => boolean;
+  armFormatPainter: () => void;
+  disarmFormatPainter: () => void;
+  isFormatPainterArmed: () => boolean;
 
   getDataGroups: () => DataGroupDef[];
   createDataGroup: (label: string, mode?: DataGroupDef["mode"]) => boolean;
@@ -131,6 +135,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   const restoring = useRef(false);
   const snapTimer = useRef<number | null>(null);
   const dataGroupsRef = useRef<DataGroupDef[]>([]);
+  const formatPainterArmed = useRef(false);
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -198,10 +203,23 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     });
     canvasRef.current = canvas;
 
-    const onSelect = () => bump();
+    const onSelect = (e: { selected?: fabric.FabricObject[] }) => {
+      if (formatPainterArmed.current && e.selected?.[0]) {
+        const obj = e.selected[0];
+        const patch = pasteStyleTo(obj);
+        if (patch) {
+          obj.set(patch);
+          obj.setCoords();
+          canvas.requestRenderAll();
+          snapshot();
+        }
+        formatPainterArmed.current = false;
+      }
+      bump();
+    };
     canvas.on("selection:created", onSelect);
     canvas.on("selection:updated", onSelect);
-    canvas.on("selection:cleared", onSelect);
+    canvas.on("selection:cleared", () => bump());
     canvas.on("object:added", snapshot);
     canvas.on("object:removed", (e) => {
       const target = e.target;
@@ -643,6 +661,19 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
 
   const canPasteStyle = useCallback(() => hasStoredStyle(), []);
 
+  const armFormatPainter = useCallback(() => {
+    if (!copyStyle()) return;
+    formatPainterArmed.current = true;
+    bump();
+  }, [copyStyle, bump]);
+
+  const disarmFormatPainter = useCallback(() => {
+    formatPainterArmed.current = false;
+    bump();
+  }, [bump]);
+
+  const isFormatPainterArmed = useCallback(() => formatPainterArmed.current, []);
+
   const getDataGroups = useCallback(() => dataGroupsRef.current, []);
 
   const createDataGroup = useCallback(
@@ -834,13 +865,64 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
       if (typing || editingText) return;
 
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === "z") {
+      const key = e.key.toLowerCase();
+      const text = active && isTextType(active) ? (active as fabric.Textbox) : null;
+
+      const patchText = (patch: Record<string, unknown>) => {
+        const c = canvasRef.current;
+        if (!c || !text) return;
+        text.set(patch);
+        text.setCoords();
+        c.requestRenderAll();
+        snapshot();
+        bump();
+      };
+
+      if (key === "escape") {
+        if (formatPainterArmed.current) {
+          e.preventDefault();
+          disarmFormatPainter();
+        }
+        return;
+      }
+
+      if (mod && key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
       } else if (mod && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if (mod && e.altKey && key === "c") {
+        e.preventDefault();
+        armFormatPainter();
+      } else if (mod && text && key === "b" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        const on = Number(text.fontWeight ?? 400) >= 700;
+        patchText({ fontWeight: on ? "400" : "700" });
+      } else if (mod && text && key === "i" && !e.shiftKey) {
+        e.preventDefault();
+        patchText({ fontStyle: text.fontStyle === "italic" ? "normal" : "italic" });
+      } else if (mod && text && key === "u" && !e.shiftKey) {
+        e.preventDefault();
+        patchText({ underline: !text.underline });
+      } else if (mod && e.shiftKey && text && key === "s") {
+        e.preventDefault();
+        patchText({ linethrough: !text.linethrough });
+      } else if (mod && e.shiftKey && text && key === "k") {
+        e.preventDefault();
+        const s = text.text ?? "";
+        if (!s) return;
+        const upper = s === s.toUpperCase() && s !== s.toLowerCase();
+        patchText({ text: upper ? s.toLowerCase() : s.toUpperCase() });
+      } else if (mod && key === "c" && !e.shiftKey && !e.altKey) {
+        if (!canvasRef.current?.getActiveObject()) return;
+        e.preventDefault();
+        copyStyle();
+      } else if (mod && e.key.toLowerCase() === "v" && !e.shiftKey) {
+        if (!hasStoredStyle()) return;
+        e.preventDefault();
+        pasteStyle();
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "c") {
         e.preventDefault();
         copyStyle();
@@ -857,7 +939,18 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, duplicateSelected, deleteSelected, copyStyle, pasteStyle]);
+  }, [
+    undo,
+    redo,
+    duplicateSelected,
+    deleteSelected,
+    copyStyle,
+    pasteStyle,
+    armFormatPainter,
+    disarmFormatPainter,
+    snapshot,
+    bump,
+  ]);
 
   return {
     canvasElRef,
@@ -896,6 +989,9 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     copyStyle,
     pasteStyle,
     canPasteStyle,
+    armFormatPainter,
+    disarmFormatPainter,
+    isFormatPainterArmed,
     getDataGroups,
     createDataGroup,
     removeFromDataGroup,

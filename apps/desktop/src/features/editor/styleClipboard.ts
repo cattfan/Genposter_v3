@@ -10,10 +10,15 @@ const TEXT_KEYS = [
   "fontWeight",
   "fontStyle",
   "underline",
+  "linethrough",
   "fill",
   "textAlign",
   "lineHeight",
   "charSpacing",
+  "stroke",
+  "strokeWidth",
+  "opacity",
+  "originY",
 ] as const;
 
 const SHAPE_KEYS = ["fill", "stroke", "strokeWidth", "opacity", "rx", "ry"] as const;
