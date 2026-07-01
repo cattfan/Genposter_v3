@@ -1,12 +1,15 @@
-import type { Slide, SlideItem } from "@genposter/schema";
+import type { DataRow } from "@genposter/schema";
 
 export interface BindContext {
-  slide: Slide;
-  item?: SlideItem;
+  /** The data row assigned to the current group member (if any). */
+  row?: DataRow;
+  /** Set-level photos (token photo:set:i). */
+  setPhotos?: string[];
+  /** 1-based ordinal within a repeat group. */
   n?: number;
 }
 
-/** Key under which AI-generated text is stashed on an item (per element). */
+/** Key under which AI-generated text is stashed on a row (per element). */
 export function aiKey(elementId: string): string {
   return `__ai__${elementId}`;
 }
@@ -17,26 +20,15 @@ export function resolveText(bind: string, ctx: BindContext, elementId?: string):
   if (bind.startsWith("static:")) return bind.slice(7);
   if (bind.startsWith("photo:")) return "";
   if (bind.startsWith("ai:")) {
-    if (elementId && ctx.item) {
-      const v = ctx.item[aiKey(elementId)];
+    if (elementId && ctx.row) {
+      const v = ctx.row[aiKey(elementId)];
       if (v != null) return String(v);
     }
     return "";
   }
-  switch (bind) {
-    case "title":
-      return ctx.slide.title ?? "";
-    case "subtitle":
-      return ctx.slide.subtitle ?? "";
-    case "page":
-      return String(ctx.slide.page ?? ctx.slide.index);
-    case "pages":
-      return String(ctx.slide.pages ?? 1);
-    case "n":
-      return String(ctx.n ?? "");
-  }
+  if (bind === "n") return String(ctx.n ?? "");
   if (bind.startsWith("item.")) {
-    const v = ctx.item?.[bind.slice(5)];
+    const v = ctx.row?.[bind.slice(5)];
     return v == null ? "" : String(v);
   }
   return "";
@@ -44,10 +36,10 @@ export function resolveText(bind: string, ctx: BindContext, elementId?: string):
 
 /** Resolve a photo binding token to an absolute path (or null). */
 export function resolvePhoto(bind: string, ctx: BindContext): string | null {
-  const m = bind.match(/^photo:(item|slide):(\d+)$/);
+  const m = bind.match(/^photo:(item|set):(\d+)$/);
   if (!m) return null;
   const idx = parseInt(m[2]!, 10) || 0;
-  const arr = m[1] === "item" ? ctx.item?.photos ?? [] : ctx.slide.photos;
+  const arr = m[1] === "item" ? ctx.row?.photos ?? [] : ctx.setPhotos ?? [];
   return arr[idx] ?? null;
 }
 
