@@ -69,10 +69,6 @@ export interface SlotDef {
 }
 
 export const DESIGN_SLOTS: SlotDef[] = [
-  { bind: "title", label: "Tiêu đề", kind: "text" },
-  { bind: "subtitle", label: "Phụ đề", kind: "text" },
-  { bind: "page", label: "Trang", kind: "text" },
-  { bind: "pages", label: "Tổng trang", kind: "text" },
   { bind: "n", label: "STT", kind: "text" },
   { bind: "item.name", label: "Tên", kind: "text" },
   { bind: "item.address", label: "Địa chỉ", kind: "text" },
@@ -80,5 +76,5 @@ export const DESIGN_SLOTS: SlotDef[] = [
   { bind: "item.price_pp", label: "Giá/người", kind: "text" },
   { bind: "item.desc", label: "Mô tả", kind: "text" },
   { bind: "photo:item:0", label: "Ảnh item", kind: "photo" },
-  { bind: "photo:slide:0", label: "Ảnh slide", kind: "photo" },
+  { bind: "photo:set:0", label: "Ảnh bộ", kind: "photo" },
 ];

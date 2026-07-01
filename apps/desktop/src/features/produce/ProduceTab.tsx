@@ -28,7 +28,7 @@ import {
 } from "@tabler/icons-react";
 import type { TemplateSet } from "@genposter/schema";
 
-import { buildGenerate } from "../../lib/generate.js";
+import { buildGenerate, countCandidates } from "../../lib/generate.js";
 import { sheetColumns, listSheets, type SheetInfo } from "../../lib/excel.js";
 import { loadMapping } from "../../lib/mapping.js";
 import { renderSetsToZip } from "../../lib/render.js";
@@ -75,6 +75,7 @@ export function ProduceTab() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ dest: string; summaries: string[] } | null>(null);
+  const [candidateCount, setCandidateCount] = useState(0);
   const [dataErr, setDataErr] = useState<string | null>(null);
 
   const setD = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -103,12 +104,26 @@ export function ProduceTab() {
     [templateSet],
   );
 
-  const candidateCount = useMemo(() => {
-    const s = sheets.find((x) => x.sheet === draft.sheet);
-    const total = s?.rows ?? 0;
-    const limit = draft.limit ? Number(draft.limit) : 0;
-    return limit > 0 ? Math.min(limit, total) : total;
-  }, [sheets, draft.sheet, draft.limit]);
+  // Count rows AFTER applying the sheet filter + limit, matching what the
+  // generator actually uses, so the sufficiency warning/gate is accurate.
+  useEffect(() => {
+    let cancelled = false;
+    const filter =
+      draft.filterField && draft.filterValue
+        ? { [draft.filterField]: draft.filterValue }
+        : {};
+    const limit = draft.limit ? Number(draft.limit) : null;
+    void countCandidates(draft.sheet, filter, limit)
+      .then((n) => {
+        if (!cancelled) setCandidateCount(n);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidateCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.sheet, draft.filterField, draft.filterValue, draft.limit]);
 
   const notEnough = rowsNeededPerSet > 0 && candidateCount < rowsNeededPerSet;
 
@@ -182,9 +197,6 @@ export function ProduceTab() {
     try {
       const recipe = draftToRecipe(draft, allElements(pages));
       const payload = await buildGenerate(templateSet, recipe);
-      const { zipBytes, fileCount } = await renderSetsToZip(templateSet, payload, recipe, {
-        onProgress: (done, total) => setProgress({ done, total }),
-      });
       await ensureDir(paths.outputDir());
       const dest = await save({
         defaultPath: join(paths.outputDir(), timestampZipName()),
@@ -194,6 +206,9 @@ export function ProduceTab() {
         ok("Đã hủy lưu.");
         return;
       }
+      const { zipBytes, fileCount } = await renderSetsToZip(templateSet, payload, recipe, {
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
       await writeBytes(dest, zipBytes);
       const summaries = payload.sets.map((s) => {
         const names = [

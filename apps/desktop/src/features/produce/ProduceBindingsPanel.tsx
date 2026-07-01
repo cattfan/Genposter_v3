@@ -174,9 +174,7 @@ export function ProduceBindingsPanel({
                         {g.label}
                       </Text>
                       <Text size="xs" c="dimmed">
-                        {g.mode === "slot"
-                          ? `Item #${(g.itemIndex ?? 0) + 1}`
-                          : "Lặp danh sách"}
+                        {g.mode === "slot" ? "1 dòng/bộ" : "Lặp danh sách"}
                       </Text>
                     </Group>
                   </Accordion.Control>

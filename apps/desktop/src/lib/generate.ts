@@ -12,6 +12,19 @@ function applyFilter(rows: CanonRow[], filter: Record<string, string>): CanonRow
   return rows.filter((r) => keys.every((k) => normCompare(r._raw[k], filter[k])));
 }
 
+/** Count candidate rows after filter + limit (no photo resolution). */
+export async function countCandidates(
+  sheet: string,
+  filter: Record<string, string>,
+  limit: number | null,
+): Promise<number> {
+  if (!sheet) return 0;
+  const { rows } = await canonicalRows(sheet);
+  let filtered = applyFilter(rows, filter);
+  if (limit) filtered = filtered.slice(0, limit);
+  return filtered.length;
+}
+
 /** Load + filter + resolve photos into flat DataRow candidates. */
 export async function loadCandidates(recipe: Recipe): Promise<DataRow[]> {
   const { map, rows } = await canonicalRows(recipe.data.sheet);

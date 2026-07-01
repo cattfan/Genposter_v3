@@ -76,6 +76,13 @@ function objectsById(canvas: fabric.StaticCanvas): Map<string, fabric.FabricObje
   return m;
 }
 
+function membersOf(canvas: fabric.StaticCanvas, group: DataGroupDef): fabric.FabricObject[] {
+  const byId = objectsById(canvas);
+  return group.memberIds
+    .map((id) => byId.get(id))
+    .filter((o): o is fabric.FabricObject => Boolean(o));
+}
+
 async function bindSlotGroup(
   canvas: fabric.StaticCanvas,
   group: DataGroupDef,
@@ -99,19 +106,14 @@ async function bindRepeatGroup(
   setPhotos: string[],
 ): Promise<void> {
   const step = (group.repeat?.rowHeight ?? 110) + (group.repeat?.gap ?? 0);
-  const byId = objectsById(canvas);
-  const members = group.memberIds
-    .map((id) => byId.get(id))
-    .filter((o): o is fabric.FabricObject => Boolean(o));
+  const members = membersOf(canvas, group);
   if (!members.length || !rows.length) {
     for (const obj of members) canvas.remove(obj);
     return;
   }
 
-  for (const obj of members) {
-    await applyBinding(obj, bindForObject(obj, binds), { row: rows[0]!, n: 1, setPhotos });
-  }
-
+  // Clone from the still-unbound originals first, so a row without a photo
+  // falls back to the design placeholder rather than inheriting row 0's image.
   for (let i = 1; i < rows.length; i++) {
     for (const obj of members) {
       const clone = await obj.clone(CLONE_PROPS);
@@ -124,6 +126,10 @@ async function bindRepeatGroup(
       });
       canvas.add(clone);
     }
+  }
+
+  for (const obj of members) {
+    await applyBinding(obj, bindForObject(obj, binds), { row: rows[0]!, n: 1, setPhotos });
   }
 }
 
@@ -158,7 +164,12 @@ export async function renderPageCanvas(
 
   for (const g of groups) {
     const rows = fillByGroup.get(g.id);
-    if (!rows || !rows.length) continue;
+    if (!rows || !rows.length) {
+      // Group with no assigned rows (e.g. repeat maxRows=0): drop its members
+      // so design-time placeholders don't leak into the export.
+      for (const obj of membersOf(canvas, g)) canvas.remove(obj);
+      continue;
+    }
     if (g.mode === "slot") {
       await bindSlotGroup(canvas, g, binds, rows[0]!, setPhotos);
     } else {
