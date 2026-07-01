@@ -15,57 +15,37 @@ export interface RecipeSummary {
 interface RecipeYaml {
   name?: string;
   template_id?: string;
-  title?: string;
-  subtitle?: string;
   data?: {
     sheet?: string;
     filter?: Record<string, string>;
-    items_per_slide?: number;
     limit?: number | null;
   };
-  photos?: { per_item?: number; per_slide?: number };
+  photos?: { per_item?: number; per_set?: number };
+  random_set_count?: number;
   bindings?: { elementId: string; bind: string; label?: string }[];
-  list_row?: {
-    element_ids?: string[];
-    row_height?: number;
-    gap?: number;
-    max_rows?: number;
-  } | null;
   output?: { dir?: string; format?: "jpg" | "png"; quality?: number };
 }
 
 function yamlToRecipe(y: RecipeYaml, id: string): Recipe {
-  const lr = y.list_row;
   return {
     id,
     name: y.name ?? id,
     templateId: y.template_id ?? "",
-    title: y.title ?? "",
-    subtitle: y.subtitle ?? "",
     data: {
       sheet: y.data?.sheet ?? "",
       filter: y.data?.filter ?? {},
-      itemsPerSlide: y.data?.items_per_slide ?? 7,
       limit: y.data?.limit ?? null,
     },
     photos: {
       perItem: y.photos?.per_item ?? 1,
-      perSlide: y.photos?.per_slide ?? 0,
+      perSet: y.photos?.per_set ?? 0,
     },
+    randomSetCount: y.random_set_count ?? 1,
     bindings: (y.bindings ?? []).map((b) => ({
       elementId: b.elementId,
       bind: b.bind,
       label: b.label,
     })),
-    listRow:
-      lr && lr.element_ids && lr.element_ids.length
-        ? {
-            elementIds: lr.element_ids,
-            rowHeight: lr.row_height ?? 110,
-            gap: lr.gap ?? 8,
-            maxRows: lr.max_rows ?? y.data?.items_per_slide ?? 7,
-          }
-        : null,
     output: {
       dir: y.output?.dir ?? `output/${id}`,
       format: y.output?.format ?? "jpg",
@@ -75,30 +55,19 @@ function yamlToRecipe(y: RecipeYaml, id: string): Recipe {
 }
 
 function recipeToYaml(r: Recipe): RecipeYaml {
-  const y: RecipeYaml = {
+  return {
     name: r.name,
     template_id: r.templateId,
-    title: r.title,
-    subtitle: r.subtitle,
     data: {
       sheet: r.data.sheet,
       filter: Object.keys(r.data.filter).length ? r.data.filter : undefined,
-      items_per_slide: r.data.itemsPerSlide,
       limit: r.data.limit ?? undefined,
     },
-    photos: { per_item: r.photos.perItem, per_slide: r.photos.perSlide },
+    photos: { per_item: r.photos.perItem, per_set: r.photos.perSet },
+    random_set_count: r.randomSetCount,
     bindings: r.bindings.filter((b) => b.elementId && b.bind),
     output: r.output,
   };
-  if (r.listRow && r.listRow.elementIds.length) {
-    y.list_row = {
-      element_ids: r.listRow.elementIds,
-      row_height: r.listRow.rowHeight,
-      gap: r.listRow.gap,
-      max_rows: r.listRow.maxRows,
-    };
-  }
-  return y;
 }
 
 export async function listRecipes(): Promise<RecipeSummary[]> {
