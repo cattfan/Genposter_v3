@@ -1,4 +1,4 @@
-import { FIELD_LABELS, SLIDE_BIND_OPTIONS } from "@genposter/schema";
+import { FIELD_LABELS } from "@genposter/schema";
 
 export interface BindOption {
   value: string;
@@ -13,12 +13,11 @@ export function buildBindOptions(fields: string[], isImage: boolean): BindOption
     out.push({ value: "photo:item:0", label: "Ảnh mục #1" });
     out.push({ value: "photo:item:1", label: "Ảnh mục #2" });
     out.push({ value: "photo:item:2", label: "Ảnh mục #3" });
-    out.push({ value: "photo:slide:0", label: "Ảnh slide #1" });
-    out.push({ value: "photo:slide:1", label: "Ảnh slide #2" });
+    out.push({ value: "photo:set:0", label: "Ảnh bộ #1" });
+    out.push({ value: "photo:set:1", label: "Ảnh bộ #2" });
     return out;
   }
 
-  for (const o of SLIDE_BIND_OPTIONS) out.push({ value: o.bind, label: o.label });
   out.push({ value: "n", label: "STT (số thứ tự)" });
   for (const f of fields) {
     out.push({ value: `item.${f}`, label: `Mục: ${FIELD_LABELS[f] ?? f}` });
