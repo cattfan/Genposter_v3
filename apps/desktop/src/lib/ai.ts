@@ -1,31 +1,47 @@
-import type { Recipe, Slide } from "@genposter/schema";
+import type { GeneratedSet, Recipe } from "@genposter/schema";
 
 import { aiKey, fillTokens } from "./bind.js";
+import type { KhuonPlan } from "./khuon-plan.js";
 import { settings } from "./settings.js";
 
 /**
- * AI text transform hook (Tab 2). For every binding shaped `ai:<prompt>`, this
- * generates text per item and stashes it under aiKey(elementId) on each item so
- * the renderer can read it. No-op when no API key is configured.
- *
- * The prompt template may use {{item.name}}, {{item.desc}}, {{title}}, etc.
+ * AI text transform hook. For every binding shaped `ai:<prompt>`, generate text
+ * per assigned row and stash it under aiKey(elementId) so the renderer can read
+ * it. No-op when no API key is configured.
  */
-export async function applyAiBindings(recipe: Recipe, slides: Slide[]): Promise<void> {
+export async function applyAiBindings(
+  recipe: Recipe,
+  sets: GeneratedSet[],
+  plan: KhuonPlan,
+): Promise<void> {
   const aiBinds = recipe.bindings.filter((b) => b.bind.startsWith("ai:"));
   if (!aiBinds.length) return;
 
   const cfg = settings().ai;
   if (!cfg.apiKey || !cfg.baseUrl) return; // framework present, generation disabled
 
-  for (const slide of slides) {
-    for (let n = 0; n < slide.items.length; n++) {
-      const item = slide.items[n]!;
-      for (const b of aiBinds) {
-        const prompt = fillTokens(b.bind.slice(3), { slide, item, n: n + 1 });
-        try {
-          item[aiKey(b.elementId)] = await complete(cfg, prompt);
-        } catch {
-          item[aiKey(b.elementId)] = "";
+  const promptByEl = new Map(aiBinds.map((b) => [b.elementId, b.bind.slice(3)]));
+  const membersByPageGroup = new Map<string, string[]>();
+  for (const p of plan.pages) {
+    for (const g of p.groups) membersByPageGroup.set(`${p.pageId}::${g.id}`, g.memberIds);
+  }
+
+  for (const set of sets) {
+    for (const page of set.pages) {
+      for (const gf of page.groups) {
+        const memberIds = membersByPageGroup.get(`${page.pageId}::${gf.groupId}`) ?? [];
+        for (const elId of memberIds) {
+          const prompt = promptByEl.get(elId);
+          if (!prompt) continue;
+          for (let i = 0; i < gf.rows.length; i++) {
+            const row = gf.rows[i]!;
+            const filled = fillTokens(prompt, { row, n: i + 1 });
+            try {
+              row[aiKey(elId)] = await complete(cfg, filled);
+            } catch {
+              row[aiKey(elId)] = "";
+            }
+          }
         }
       }
     }
