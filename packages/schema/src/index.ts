@@ -108,38 +108,43 @@ export interface Mapping {
 }
 
 // ---------------------------------------------------------------------------
-// Slide data (built from Excel + mapping at produce time)
+// Generated data (built from Excel at produce time, random-filled per set)
 // ---------------------------------------------------------------------------
 
-export interface SlideItem {
-  name?: string;
-  address?: string;
-  price?: string;
-  price_pp?: string;
-  desc?: string;
-  photo_key?: string;
-  /** Absolute paths to resolved photos for this item. */
+/** One resolved data row: canonical fields (flat) + resolved photo paths. */
+export interface DataRow {
   photos: string[];
-  [extra: string]: unknown;
+  [field: string]: unknown;
 }
 
-export interface Slide {
-  index: number;
-  page: number;
-  pages: number;
-  title: string;
-  subtitle: string;
-  items: SlideItem[];
-  /** Slide-level illustrative photos. */
-  photos: string[];
+/** Rows assigned to one data group on one page within one set. */
+export interface GroupFill {
+  groupId: string;
+  /** slot mode: exactly 1 row; repeat mode: one row per repeated line. */
+  rows: DataRow[];
 }
 
-export interface SlidePayload {
+/** One page of a set, with its groups filled. */
+export interface GeneratedPage {
+  pageId: string;
+  groups: GroupFill[];
+}
+
+/** One set = one independent random draw covering every page of the khuôn. */
+export interface GeneratedSet {
+  /** 1-based. */
+  setIndex: number;
+  pages: GeneratedPage[];
+  /** Set-level illustrative photos (token photo:set:i). */
+  setPhotos: string[];
+}
+
+export interface GeneratePayload {
   recipeId: string;
   templateId: string;
   sheet: string;
-  count: number;
-  slides: Slide[];
+  rowsNeededPerSet: number;
+  sets: GeneratedSet[];
 }
 
 // ---------------------------------------------------------------------------
@@ -150,24 +155,16 @@ export interface SlidePayload {
  * Binding token grammar (string `bind`):
  *  - ""                 not bound
  *  - "static:<text>"    literal text
- *  - "title" | "subtitle" | "page" | "pages" | "n"
- *  - "item.<field>"     canonical item field (name, address, price, ...)
- *  - "photo:item:<i>"   i-th photo of the current item
- *  - "photo:slide:<i>"  i-th slide-level photo
+ *  - "n"                1-based ordinal within a repeat group
+ *  - "item.<field>"     canonical field of the assigned data row
+ *  - "photo:item:<i>"   i-th photo of the assigned data row
+ *  - "photo:set:<i>"    i-th set-level photo
  *  - "ai:<prompt>"      (future) AI-generated text from item fields
  */
 export interface ElementBinding {
   elementId: string;
   bind: string;
   label?: string;
-}
-
-export interface ListRowConfig {
-  /** Object ids that make up one repeating row. */
-  elementIds: string[];
-  rowHeight: number;
-  gap: number;
-  maxRows: number;
 }
 
 export interface RecipeOutput {
@@ -179,21 +176,22 @@ export interface RecipeOutput {
 export interface Recipe {
   id: string;
   name: string;
+  /** TemplateSet id (whole multi-page khuôn). */
   templateId: string;
-  title: string;
-  subtitle: string;
   data: {
     sheet: string;
     filter: Record<string, string>;
-    itemsPerSlide: number;
     limit: number | null;
   };
   photos: {
+    /** photos resolved per data row (token photo:item:i). */
     perItem: number;
-    perSlide: number;
+    /** photos gathered per set (token photo:set:i). */
+    perSet: number;
   };
+  /** How many sets to generate per run. */
+  randomSetCount: number;
   bindings: ElementBinding[];
-  listRow: ListRowConfig | null;
   output: RecipeOutput;
 }
 
@@ -234,13 +232,6 @@ export const FIELD_LABELS: Record<string, string> = {
   category: "Danh mục",
   title: "Tiêu đề",
 };
-
-export const SLIDE_BIND_OPTIONS: { bind: string; label: string }[] = [
-  { bind: "title", label: "Tiêu đề slide" },
-  { bind: "subtitle", label: "Phụ đề" },
-  { bind: "page", label: "Trang (số)" },
-  { bind: "pages", label: "Tổng số trang" },
-];
 
 export const CANVAS_W = 1080;
 export const CANVAS_H = 1350;
