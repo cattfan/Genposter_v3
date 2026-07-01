@@ -3,7 +3,6 @@ import {
   Accordion,
   ActionIcon,
   Group,
-  NumberInput,
   Select,
   Stack,
   Table,
@@ -211,21 +210,9 @@ export function ProduceBindingsPanel({
                           </ActionIcon>
                         </Tooltip>
                         <Text size="xs" c="dimmed">
-                          Các phần tử trong nhóm dùng chung 1 item khi tạo ảnh.
+                          Nhóm slot lấy 1 dòng ngẫu nhiên; nhóm lặp lấy nhiều dòng.
                         </Text>
                       </Group>
-                      {g.mode === "slot" && (
-                        <NumberInput
-                          size="xs"
-                          label="Item trên slide (1 = đầu tiên)"
-                          min={1}
-                          value={(g.itemIndex ?? 0) + 1}
-                          onChange={() => {
-                            /* read-only in produce — edit in design */
-                          }}
-                          disabled
-                        />
-                      )}
                       {bindingTable(members)}
                     </Stack>
                   </Accordion.Panel>
