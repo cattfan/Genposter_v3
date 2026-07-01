@@ -44,6 +44,9 @@ importers:
       fabric:
         specifier: ^6.5.4
         version: 6.9.1
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       js-yaml:
         specifier: ^4.1.0
         version: 4.2.0
@@ -947,6 +950,9 @@ packages:
   fabric@6.9.1:
     resolution: {integrity: sha512-TqG08Xbt4rtlPsXgCjSUcZz/RsyEP57Qo21nCVRkw7zz9nR0co4SLkL9Q/zQh3tC1Yxap6M5jKFHUKV6SgPovg==}
     engines: {node: '>=16.20.0'}
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   form-data@4.0.6:
     resolution: {integrity: sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ==}
@@ -2398,6 +2404,8 @@ snapshots:
       - encoding
       - supports-color
       - utf-8-validate
+
+  fflate@0.8.3: {}
 
   form-data@4.0.6:
     dependencies:
