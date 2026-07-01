@@ -75,6 +75,7 @@ export interface GeneratedPage {
 export interface GeneratedSet {
   setIndex: number; // 1-based
   pages: GeneratedPage[];
+  setPhotos: string[]; // ảnh chung cả bộ (token photo:set:i)
 }
 
 export interface GeneratePayload {
