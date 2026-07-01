@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { open as openPath } from "@tauri-apps/plugin-shell";
+import { save } from "@tauri-apps/plugin-dialog";
 import {
+  Accordion,
   Alert,
   Box,
   Button,
@@ -23,14 +25,13 @@ import {
   IconDownload,
   IconFilePlus,
   IconFolderOpen,
-  IconPlayerPlay,
 } from "@tabler/icons-react";
-import type { GenposterTemplate, SlidePayload, DataGroupDef } from "@genposter/schema";
+import type { TemplateSet } from "@genposter/schema";
 
-import { buildSlides } from "../../lib/build.js";
+import { buildGenerate } from "../../lib/generate.js";
 import { sheetColumns, listSheets, type SheetInfo } from "../../lib/excel.js";
 import { loadMapping } from "../../lib/mapping.js";
-import { renderAll } from "../../lib/render.js";
+import { renderSetsToZip } from "../../lib/render.js";
 import {
   listRecipes,
   loadRecipe,
@@ -38,12 +39,15 @@ import {
   type RecipeSummary,
 } from "../../lib/recipe-io.js";
 import {
-  listTemplates,
-  loadTemplate,
-  type TemplateSummary,
-} from "../../lib/template-io.js";
-import { migrateSceneDataGroups } from "../../lib/scene-groups.js";
-import { extractElements, type ElementInfo } from "./elements.js";
+  listTemplateSets,
+  loadTemplateSet,
+  type TemplateSetSummary,
+} from "../../lib/templateset-io.js";
+import { ensureDir, writeBytes } from "../../lib/fsx.js";
+import { join, paths } from "../../lib/paths.js";
+import { buildKhuonPlan } from "../../lib/khuon-plan.js";
+import { timestampZipName } from "../../lib/zip.js";
+import { allElements, extractSetPages, type PageElements } from "./elements.js";
 import { ProduceBindingsPanel } from "./ProduceBindingsPanel.js";
 import {
   draftToRecipe,
@@ -58,21 +62,19 @@ const ok = (message: string) => notifications.show({ message, color: "teal" });
 const fail = (message: string) => notifications.show({ message, color: "red" });
 
 export function ProduceTab() {
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [sets, setSets] = useState<TemplateSetSummary[]>([]);
   const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
   const [sheets, setSheets] = useState<SheetInfo[]>([]);
   const [columns, setColumns] = useState<string[]>([]);
   const [canonFields, setCanonFields] = useState<string[]>([]);
 
   const [draft, setDraft] = useState<Draft>(emptyDraft());
-  const [elements, setElements] = useState<ElementInfo[]>([]);
-  const [dataGroups, setDataGroups] = useState<DataGroupDef[]>([]);
-  const [template, setTemplate] = useState<GenposterTemplate | null>(null);
+  const [pages, setPages] = useState<PageElements[]>([]);
+  const [templateSet, setTemplateSet] = useState<TemplateSet | null>(null);
 
-  const [payload, setPayload] = useState<SlidePayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
-  const [outputDir, setOutputDir] = useState<string | null>(null);
+  const [result, setResult] = useState<{ dest: string; summaries: string[] } | null>(null);
   const [dataErr, setDataErr] = useState<string | null>(null);
 
   const setD = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -80,10 +82,10 @@ export function ProduceTab() {
   useEffect(() => {
     void (async () => {
       try {
-        setTemplates(await listTemplates());
+        setSets(await listTemplateSets());
         setRecipes(await listRecipes());
       } catch (e) {
-        fail(`Không đọc được templates/recipes: ${String(e)}`);
+        fail(`Không đọc được mẫu/khuôn: ${String(e)}`);
       }
       try {
         setSheets(await listSheets());
@@ -96,21 +98,32 @@ export function ProduceTab() {
     })();
   }, []);
 
-  async function chooseTemplate(id: string, base?: Draft) {
+  const rowsNeededPerSet = useMemo(
+    () => (templateSet ? buildKhuonPlan(templateSet).rowsNeededPerSet : 0),
+    [templateSet],
+  );
+
+  const candidateCount = useMemo(() => {
+    const s = sheets.find((x) => x.sheet === draft.sheet);
+    const total = s?.rows ?? 0;
+    const limit = draft.limit ? Number(draft.limit) : 0;
+    return limit > 0 ? Math.min(limit, total) : total;
+  }, [sheets, draft.sheet, draft.limit]);
+
+  const notEnough = rowsNeededPerSet > 0 && candidateCount < rowsNeededPerSet;
+
+  async function chooseSet(id: string, base?: Draft) {
     if (!id) {
-      setTemplate(null);
-      setElements([]);
-      setDataGroups([]);
+      setTemplateSet(null);
+      setPages([]);
       return;
     }
     try {
-      const tpl = await loadTemplate(id);
-      const migrated = migrateSceneDataGroups(tpl.scene);
-      const els = extractElements(migrated);
-      setTemplate({ ...tpl, scene: migrated });
-      setElements(els);
-      setDataGroups((migrated.dataGroups as DataGroupDef[] | undefined) ?? []);
-      setDraft((d) => mergeElements({ ...(base ?? d), templateId: id }, els));
+      const set = await loadTemplateSet(id);
+      const pe = extractSetPages(set);
+      setTemplateSet(set);
+      setPages(pe);
+      setDraft((d) => mergeElements({ ...(base ?? d), templateId: id }, allElements(pe)));
     } catch (e) {
       fail(`Lỗi tải mẫu: ${String(e)}`);
     }
@@ -140,62 +153,70 @@ export function ProduceTab() {
     try {
       const r = await loadRecipe(id);
       const d = recipeToDraft(r);
-      await chooseTemplate(r.templateId, d);
+      await chooseSet(r.templateId, d);
       await chooseSheet(r.data.sheet);
       setDraft(d);
-      ok(`Đã mở preset: ${r.name}`);
+      ok(`Đã mở khuôn: ${r.name}`);
     } catch (e) {
-      fail(`Lỗi mở preset: ${String(e)}`);
+      fail(`Lỗi mở khuôn: ${String(e)}`);
     }
   }
 
   async function savePreset() {
     try {
-      const recipe = draftToRecipe(draft, elements);
+      const recipe = draftToRecipe(draft, allElements(pages));
       const id = await saveRecipe(recipe);
       setRecipes(await listRecipes());
       setD({ id });
-      ok(`Đã lưu preset: ${id}`);
+      ok(`Đã lưu khuôn: ${id}`);
     } catch (e) {
-      fail(`Lỗi lưu preset: ${String(e)}`);
+      fail(`Lỗi lưu khuôn: ${String(e)}`);
     }
   }
 
-  async function build() {
-    setPayload(null);
+  async function generateAndExport() {
+    if (!templateSet) return;
     setBusy(true);
+    setResult(null);
+    setProgress({ done: 0, total: 0 });
     try {
-      const recipe = draftToRecipe(draft, elements);
-      const p = await buildSlides(recipe);
-      setPayload(p);
-      ok(`Đã dựng ${p.slides.length} slide từ ${p.count} mục.`);
-    } catch (e) {
-      fail(`Lỗi dựng slide: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function exportAll() {
-    if (!template || !payload) return;
-    setBusy(true);
-    setProgress({ done: 0, total: payload.slides.length });
-    try {
-      const recipe = draftToRecipe(draft, elements);
-      const res = await renderAll(template, payload, recipe, {
+      const recipe = draftToRecipe(draft, allElements(pages));
+      const payload = await buildGenerate(templateSet, recipe);
+      const { zipBytes, fileCount } = await renderSetsToZip(templateSet, payload, recipe, {
         onProgress: (done, total) => setProgress({ done, total }),
       });
-      setOutputDir(res.outputDir);
-      ok(`Xuất xong ${res.files.length} ảnh.`);
+      await ensureDir(paths.outputDir());
+      const dest = await save({
+        defaultPath: join(paths.outputDir(), timestampZipName()),
+        filters: [{ name: "Zip", extensions: ["zip"] }],
+      });
+      if (!dest) {
+        ok("Đã hủy lưu.");
+        return;
+      }
+      await writeBytes(dest, zipBytes);
+      const summaries = payload.sets.map((s) => {
+        const names = [
+          ...new Set(
+            s.pages.flatMap((p) =>
+              p.groups.flatMap((g) => g.rows.map((r) => String(r.name ?? ""))),
+            ),
+          ),
+        ]
+          .filter(Boolean)
+          .slice(0, 3);
+        return `Bộ ${s.setIndex}: ${names.join(", ") || "(ảnh tĩnh)"}`;
+      });
+      setResult({ dest, summaries });
+      ok(`Đã xuất ${payload.sets.length} bộ (${fileCount} ảnh).`);
     } catch (e) {
-      fail(`Lỗi xuất ảnh: ${String(e)}`);
+      fail(`Lỗi sinh ảnh: ${String(e)}`);
     } finally {
       setBusy(false);
     }
   }
 
-  const percent =
-    progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
+  const percent = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
 
   return (
     <div className="produce">
@@ -203,21 +224,21 @@ export function ProduceTab() {
         <Box mr="auto">
           <Title order={3}>Tạo ảnh</Title>
           <Text c="dimmed" size="sm">
-            Gán dữ liệu vào mẫu rồi xuất hàng loạt
+            Chọn bộ khuôn, gán dữ liệu theo trang, sinh nhiều bộ ngẫu nhiên
           </Text>
         </Box>
         <Select
-          label="Mẫu thiết kế"
-          placeholder="— Chọn mẫu —"
+          label="Bộ mẫu"
+          placeholder="— Chọn bộ —"
           w={210}
           clearable
           value={draft.templateId || null}
-          data={templates.map((t) => ({ value: t.id, label: t.name }))}
-          onChange={(v) => void chooseTemplate(v ?? "")}
+          data={sets.map((t) => ({ value: t.id, label: t.name }))}
+          onChange={(v) => void chooseSet(v ?? "")}
         />
         <Select
-          label="Preset"
-          placeholder="— Preset mới —"
+          label="Khuôn"
+          placeholder="— Khuôn mới —"
           w={210}
           clearable
           value={draft.id || null}
@@ -229,23 +250,15 @@ export function ProduceTab() {
           leftSection={<IconFilePlus size={18} />}
           onClick={() => setDraft(emptyDraft(draft.templateId))}
         >
-          Preset mới
+          Khuôn mới
         </Button>
-        <Button
-          leftSection={<IconDeviceFloppy size={18} />}
-          onClick={() => void savePreset()}
-        >
-          Lưu preset
+        <Button leftSection={<IconDeviceFloppy size={18} />} onClick={() => void savePreset()}>
+          Lưu khuôn
         </Button>
       </Group>
 
       {dataErr && (
-        <Alert
-          icon={<IconAlertTriangle size={18} />}
-          color="red"
-          title="Chưa đọc được dữ liệu"
-          m="md"
-        >
+        <Alert icon={<IconAlertTriangle size={18} />} color="red" title="Chưa đọc được dữ liệu" m="md">
           {dataErr}
         </Alert>
       )}
@@ -257,7 +270,7 @@ export function ProduceTab() {
           </Title>
           <Stack gap="sm">
             <TextInput
-              label="Tên preset"
+              label="Tên khuôn"
               value={draft.name}
               onChange={(e) => setD({ name: e.currentTarget.value })}
             />
@@ -266,19 +279,8 @@ export function ProduceTab() {
                 label="Sheet"
                 placeholder="— Chọn sheet —"
                 value={draft.sheet || null}
-                data={sheets.map((s) => ({
-                  value: s.sheet,
-                  label: `${s.label} (${s.rows})`,
-                }))}
+                data={sheets.map((s) => ({ value: s.sheet, label: `${s.label} (${s.rows})` }))}
                 onChange={(v) => void chooseSheet(v ?? "")}
-              />
-              <NumberInput
-                label="Số mục / slide"
-                min={1}
-                value={draft.itemsPerSlide}
-                onChange={(v) =>
-                  setD({ itemsPerSlide: typeof v === "number" ? v : 1 })
-                }
               />
               <Select
                 label="Lọc theo cột"
@@ -295,40 +297,22 @@ export function ProduceTab() {
                 onChange={(e) => setD({ filterValue: e.currentTarget.value })}
               />
               <NumberInput
-                label="Giới hạn mục (trống = tất cả)"
+                label="Giới hạn dòng (trống = tất cả)"
                 min={0}
                 value={draft.limit === "" ? "" : Number(draft.limit)}
-                onChange={(v) =>
-                  setD({ limit: v === "" || v == null ? "" : String(v) })
-                }
+                onChange={(v) => setD({ limit: v === "" || v == null ? "" : String(v) })}
               />
               <NumberInput
                 label="Ảnh / mục"
                 min={0}
                 value={draft.perItem}
-                onChange={(v) =>
-                  setD({ perItem: typeof v === "number" ? v : 0 })
-                }
+                onChange={(v) => setD({ perItem: typeof v === "number" ? v : 0 })}
               />
               <NumberInput
-                label="Ảnh / slide"
+                label="Ảnh / bộ"
                 min={0}
-                value={draft.perSlide}
-                onChange={(v) =>
-                  setD({ perSlide: typeof v === "number" ? v : 0 })
-                }
-              />
-            </SimpleGrid>
-            <SimpleGrid cols={2} spacing="sm">
-              <TextInput
-                label="Tiêu đề"
-                value={draft.title}
-                onChange={(e) => setD({ title: e.currentTarget.value })}
-              />
-              <TextInput
-                label="Phụ đề"
-                value={draft.subtitle}
-                onChange={(e) => setD({ subtitle: e.currentTarget.value })}
+                value={draft.perSet}
+                onChange={(v) => setD({ perSet: typeof v === "number" ? v : 0 })}
               />
             </SimpleGrid>
           </Stack>
@@ -336,40 +320,20 @@ export function ProduceTab() {
 
         <Card withBorder radius="lg" padding="lg">
           <Title order={5} mb="sm">
-            Hàng danh sách & Xuất
+            Số lượng & Xuất
           </Title>
-          <Text c="dimmed" size="xs" mb="sm">
-            Các đối tượng tick “hàng DS” sẽ được nhân theo số mục trong slide.
-          </Text>
           <Stack gap="sm">
-            <SimpleGrid cols={3} spacing="sm">
-              <NumberInput
-                label="Cao mỗi hàng (px)"
-                value={draft.rowHeight}
-                onChange={(v) =>
-                  setD({ rowHeight: typeof v === "number" ? v : 0 })
-                }
-              />
-              <NumberInput
-                label="Khoảng cách (px)"
-                value={draft.gap}
-                onChange={(v) => setD({ gap: typeof v === "number" ? v : 0 })}
-              />
-              <NumberInput
-                label="Số hàng tối đa"
-                value={draft.maxRows}
-                onChange={(v) =>
-                  setD({ maxRows: typeof v === "number" ? v : 0 })
-                }
-              />
-            </SimpleGrid>
-            <SimpleGrid cols={3} spacing="sm">
-              <TextInput
-                label="Thư mục xuất"
-                placeholder="output/..."
-                value={draft.outDir}
-                onChange={(e) => setD({ outDir: e.currentTarget.value })}
-              />
+            <NumberInput
+              label="Số bộ muốn sinh"
+              min={1}
+              value={draft.randomSetCount}
+              onChange={(v) => setD({ randomSetCount: typeof v === "number" ? v : 1 })}
+            />
+            <Text size="xs" c={notEnough ? "red" : "dimmed"}>
+              Mỗi bộ cần {rowsNeededPerSet} dòng dữ liệu · có {candidateCount} dòng sau lọc
+              {notEnough ? " — không đủ!" : ""}
+            </Text>
+            <SimpleGrid cols={2} spacing="sm">
               <Box>
                 <Text size="sm" fw={500} mb={4}>
                   Định dạng
@@ -389,9 +353,7 @@ export function ProduceTab() {
                 min={10}
                 max={100}
                 value={draft.quality}
-                onChange={(v) =>
-                  setD({ quality: typeof v === "number" ? v : 90 })
-                }
+                onChange={(v) => setD({ quality: typeof v === "number" ? v : 90 })}
               />
             </SimpleGrid>
           </Stack>
@@ -399,68 +361,73 @@ export function ProduceTab() {
 
         <Card withBorder radius="lg" padding="lg" className="full">
           <Title order={5} mb="sm">
-            Gán dữ liệu cho đối tượng
+            Gán dữ liệu theo trang
           </Title>
-          {elements.length === 0 ? (
+          {pages.length === 0 ? (
             <Text c="dimmed" size="sm">
-              Chọn một mẫu để hiển thị danh sách đối tượng.
+              Chọn một bộ mẫu để hiển thị các trang.
             </Text>
           ) : (
-            <ProduceBindingsPanel
-              draft={draft}
-              setD={setD}
-              elements={elements}
-              dataGroups={dataGroups}
-              canonFields={canonFields}
-            />
+            <Accordion variant="separated" radius="md" multiple defaultValue={pages.map((p) => p.pageId)}>
+              {pages.map((p) => (
+                <Accordion.Item key={p.pageId} value={p.pageId}>
+                  <Accordion.Control>
+                    <Text fw={600} size="sm">
+                      {p.name}
+                    </Text>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    {p.elements.length === 0 ? (
+                      <Text c="dimmed" size="sm">
+                        Trang này không có đối tượng gán được.
+                      </Text>
+                    ) : (
+                      <ProduceBindingsPanel
+                        draft={draft}
+                        setD={setD}
+                        elements={p.elements}
+                        dataGroups={p.dataGroups}
+                        canonFields={canonFields}
+                      />
+                    )}
+                  </Accordion.Panel>
+                </Accordion.Item>
+              ))}
+            </Accordion>
           )}
         </Card>
 
-        {payload && (
+        {result && (
           <Card withBorder radius="lg" padding="lg" className="full">
-            <Title order={5} mb="sm">
-              Xem trước ({payload.slides.length} slide)
-            </Title>
-            <SimpleGrid
-              cols={{ base: 2, sm: 3, md: 4, lg: 6 }}
-              spacing="sm"
-            >
-              {payload.slides.slice(0, 12).map((s) => (
-                <Card key={s.index} withBorder radius="md" padding="sm">
-                  <Text size="sm" fw={700} mb={4}>
-                    Slide {s.page}/{s.pages}
-                  </Text>
-                  <Stack gap={2}>
-                    {s.items.slice(0, 5).map((it, i) => (
-                      <Text key={i} size="xs" c="dimmed" truncate>
-                        {String(it.name ?? it.desc ?? "—")}
-                      </Text>
-                    ))}
-                  </Stack>
-                </Card>
+            <Group justify="space-between" mb="sm">
+              <Title order={5}>Kết quả ({result.summaries.length} bộ)</Title>
+              <Button
+                variant="light"
+                leftSection={<IconFolderOpen size={18} />}
+                onClick={() => void openPath(result.dest.replace(/[\\/][^\\/]*$/, ""))}
+              >
+                Mở thư mục
+              </Button>
+            </Group>
+            <Stack gap={2}>
+              {result.summaries.map((s, i) => (
+                <Text key={i} size="xs" c="dimmed">
+                  {s}
+                </Text>
               ))}
-            </SimpleGrid>
+            </Stack>
           </Card>
         )}
       </div>
 
       <Group className="produce-actions" gap="md">
         <Button
-          variant="default"
-          leftSection={<IconPlayerPlay size={18} />}
-          onClick={() => void build()}
-          disabled={busy || !draft.sheet}
-          loading={busy && progress.total === 0}
-        >
-          Dựng slide
-        </Button>
-        <Button
           leftSection={<IconDownload size={18} />}
-          onClick={() => void exportAll()}
-          disabled={busy || !payload || !template}
-          loading={busy && progress.total > 0}
+          onClick={() => void generateAndExport()}
+          disabled={busy || !templateSet || !draft.sheet || notEnough}
+          loading={busy}
         >
-          Xuất hàng loạt
+          Sinh & Xuất
         </Button>
         {progress.total > 0 && (
           <Box style={{ flex: 1 }}>
@@ -471,15 +438,6 @@ export function ProduceTab() {
           <Text c="dimmed" size="sm">
             {progress.done}/{progress.total}
           </Text>
-        )}
-        {outputDir && (
-          <Button
-            variant="light"
-            leftSection={<IconFolderOpen size={18} />}
-            onClick={() => void openPath(outputDir)}
-          >
-            Mở thư mục
-          </Button>
         )}
       </Group>
     </div>
