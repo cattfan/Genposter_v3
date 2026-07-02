@@ -51,6 +51,7 @@ export function EditorTab({
   onDeletePage: (i: number) => void;
   onReorderPages: (from: number, to: number) => void;
 }) {
+  const stageViewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [inspectorOpen, setInspectorOpen] = useState(readInspectorOpen);
 
@@ -65,17 +66,20 @@ export function EditorTab({
   useStagePointer(stageRef, ed);
 
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage || !ed.ready) return;
+    // Observe the non-scrolling viewport (not `.stage` itself) so that a
+    // scrollbar appearing inside `.stage` when the user zooms in doesn't
+    // trigger a resize event that snaps the zoom back to fit-to-screen.
+    const viewport = stageViewportRef.current;
+    if (!viewport || !ed.ready) return;
     const fit = () => {
-      const cw = stage.clientWidth - 48;
-      const ch = stage.clientHeight - 48;
+      const cw = viewport.clientWidth - 48;
+      const ch = viewport.clientHeight - 48;
       if (cw < 80 || ch < 80) return;
       ed.fitTo(cw, ch);
     };
     fit();
     const ro = new ResizeObserver(fit);
-    ro.observe(stage);
+    ro.observe(viewport);
     return () => ro.disconnect();
   }, [ed.ready, set?.width, set?.height, inspectorOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,10 +103,12 @@ export function EditorTab({
         <LeftPanel ed={ed} />
         <div className="stage-column">
           <ContextBar ed={ed} />
-          <div className="stage" ref={stageRef}>
-            <CanvasContextMenu ed={ed} />
-            <div className="stage-wrap">
-              <canvas ref={ed.canvasElRef} />
+          <div className="stage-viewport" ref={stageViewportRef}>
+            <div className="stage" ref={stageRef}>
+              <CanvasContextMenu ed={ed} />
+              <div className="stage-wrap">
+                <canvas ref={ed.canvasElRef} />
+              </div>
             </div>
           </div>
         </div>

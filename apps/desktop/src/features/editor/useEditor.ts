@@ -111,6 +111,8 @@ export interface EditorApi {
   zoomIn: () => void;
   zoomOut: () => void;
   fitTo: (cw: number, ch: number) => void;
+  /** Zoom anchored at a viewport point (e.g. from a wheel event), in client (page) coordinates. */
+  zoomAtClientPoint: (clientX: number, clientY: number, deltaY: number) => void;
 
   newDesign: () => void;
   loadScene: (scene: FabricScene) => Promise<void>;
@@ -188,6 +190,29 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     c.requestRenderAll();
     zoomRef.current = clamped;
     setZoomState(clamped);
+  }, []);
+
+  const zoomAtClientPoint = useCallback((clientX: number, clientY: number, deltaY: number) => {
+    const c = canvasRef.current;
+    if (!c) return;
+
+    const factor = 0.999 ** deltaY;
+    const next = Math.min(4, Math.max(0.05, zoomRef.current * factor));
+
+    // Anchor point relative to the canvas element, computed from its current
+    // (pre-resize) bounding rect so this works even when the cursor is over
+    // the surrounding stage area rather than the canvas itself.
+    const rect = c.upperCanvasEl.getBoundingClientRect();
+    const point = new fabric.Point(clientX - rect.left, clientY - rect.top);
+
+    c.setDimensions({
+      width: sizeRef.current.w * next,
+      height: sizeRef.current.h * next,
+    });
+    c.zoomToPoint(point, next);
+    c.requestRenderAll();
+    zoomRef.current = next;
+    setZoomState(next);
   }, []);
 
   // ---- init canvas (once) ----
@@ -1005,6 +1030,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     zoomIn,
     zoomOut,
     fitTo,
+    zoomAtClientPoint,
     newDesign,
     loadScene,
     exportScene,

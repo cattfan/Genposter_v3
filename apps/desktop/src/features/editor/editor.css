@@ -31,9 +31,12 @@
   overflow: hidden;
 }
 
-.stage-column .stage {
+.stage-column .stage-viewport {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .context-bar-strip {
@@ -165,14 +168,14 @@
 }
 
 .stage {
-  position: relative;
+  position: absolute;
+  inset: 0;
   background: #e9eaee;
   overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  min-width: 0;
 }
 .stage-wrap {
   box-shadow: var(--rv-shadow-md);

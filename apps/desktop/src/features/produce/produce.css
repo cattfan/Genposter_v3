@@ -23,7 +23,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 440px;
+  grid-template-columns: 290px minmax(0, 1fr) minmax(340px, 420px);
   gap: 14px;
   padding: 14px 18px;
   overflow: hidden;
@@ -36,6 +36,11 @@
   flex-direction: column;
   gap: 14px;
   padding-bottom: 4px;
+}
+/* Cards must keep their natural height; the column scrolls instead of
+   squeezing them (flex children default to shrink -> clipped inputs). */
+.khuon-col > * {
+  flex: 0 0 auto;
 }
 
 .khuon-center {

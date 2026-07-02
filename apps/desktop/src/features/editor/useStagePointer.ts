@@ -29,7 +29,19 @@ export function useStagePointer(stageRef: RefObject<HTMLDivElement | null>, ed: 
       );
     };
 
+    // Ctrl/Cmd + wheel zoom anywhere over the stage, including the gray
+    // padding area outside the canvas (not just directly over it).
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      ed.zoomAtClientPoint(e.clientX, e.clientY, e.deltaY);
+    };
+
     stage.addEventListener("mousedown", onMouseDown);
-    return () => stage.removeEventListener("mousedown", onMouseDown);
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      stage.removeEventListener("mousedown", onMouseDown);
+      stage.removeEventListener("wheel", onWheel);
+    };
   }, [ed, ed.ready, stageRef]);
 }

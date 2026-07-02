@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Anchor,
   Box,
   Card,
+  Collapse,
   Group,
   NumberInput,
   SegmentedControl,
@@ -15,6 +17,9 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+
+import { aiConfigured } from "../../lib/ai.js";
 
 import type { SheetInfo } from "../../lib/excel.js";
 import type { PageElements } from "./elements.js";
@@ -59,6 +64,7 @@ export function KhuonEditor({
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [hoverGroupId, setHoverGroupId] = useState<string | null>(null);
+  const [promptOpen, setPromptOpen] = useState(false);
 
   useEffect(() => {
     if (pageIdx >= pages.length) setPageIdx(0);
@@ -189,28 +195,55 @@ export function KhuonEditor({
         </Card>
 
         <Card withBorder radius="lg" padding="md">
-          <Group justify="space-between" mb="sm">
-            <Title order={6}>Caption AI</Title>
+          <Group justify="space-between" wrap="nowrap">
+            <Box>
+              <Title order={6}>Caption AI</Title>
+              <Text size="xs" c="dimmed">
+                Thêm caption.txt vào mỗi bộ
+              </Text>
+            </Box>
             <Switch
               size="sm"
               checked={draft.captionEnabled}
               onChange={(e) => setD({ captionEnabled: e.currentTarget.checked })}
             />
           </Group>
-          <Stack gap="xs">
-            <Text size="xs" c="dimmed">
-              Mỗi bộ ảnh nhận 1 file caption.txt riêng, AI viết theo prompt dưới đây.
-            </Text>
-            <Textarea
-              size="xs"
-              autosize
-              minRows={5}
-              maxRows={12}
-              disabled={!draft.captionEnabled}
-              value={draft.captionPrompt}
-              onChange={(e) => setD({ captionPrompt: e.currentTarget.value })}
-            />
-          </Stack>
+          {draft.captionEnabled && (
+            <Stack gap="xs" mt="sm">
+              {!aiConfigured() && (
+                <Text size="xs" c="orange.7">
+                  Chưa cấu hình AI API — vào tab Cài đặt để nhập key, nếu không caption sẽ bị bỏ qua.
+                </Text>
+              )}
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
+                c="dimmed"
+                underline="never"
+                onClick={() => setPromptOpen((o) => !o)}
+              >
+                <Group gap={4} wrap="nowrap">
+                  {promptOpen ? (
+                    <IconChevronDown size={13} />
+                  ) : (
+                    <IconChevronRight size={13} />
+                  )}
+                  <span>{promptOpen ? "Thu gọn prompt" : "Chỉnh prompt"}</span>
+                </Group>
+              </Anchor>
+              <Collapse in={promptOpen}>
+                <Textarea
+                  size="xs"
+                  autosize
+                  minRows={5}
+                  maxRows={12}
+                  value={draft.captionPrompt}
+                  onChange={(e) => setD({ captionPrompt: e.currentTarget.value })}
+                />
+              </Collapse>
+            </Stack>
+          )}
         </Card>
       </div>
 
