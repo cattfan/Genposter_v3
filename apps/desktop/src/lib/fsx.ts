@@ -41,8 +41,8 @@ export async function writeBytes(path: string, bytes: Uint8Array): Promise<void>
   await writeFile(path, bytes);
 }
 
-export async function remove(path: string): Promise<void> {
-  await fsRemove(path);
+export async function remove(path: string, opts?: { recursive?: boolean }): Promise<void> {
+  await fsRemove(path, opts);
 }
 
 export interface Entry {

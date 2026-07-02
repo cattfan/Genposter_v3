@@ -6,10 +6,21 @@ export interface AiSettings {
   model: string;
 }
 
+/** Remote data server (NocoDB) used as an alternative to local Excel. */
+export interface ServerSettings {
+  url: string;
+  token: string;
+  baseId: string;
+  province: string;
+  /** Where produce reads data from. */
+  source: "excel" | "server";
+}
+
 export interface AppSettings {
   /** Absolute path to the Genposter project root (contains data/, templates/, ...). */
   rootDir: string;
   ai: AiSettings;
+  server: ServerSettings;
 }
 
 const KEY = "genposter.settings.v1";
@@ -21,6 +32,13 @@ const DEFAULTS: AppSettings = {
     apiKey: import.meta.env.VITE_AI_API_KEY ?? "",
     model: import.meta.env.VITE_AI_MODEL ?? "gpt-4o-mini",
   },
+  server: {
+    url: "http://192.168.110.101:8080",
+    token: "",
+    baseId: "pcq7mr8crku2d9o",
+    province: "dalat",
+    source: "excel",
+  },
 };
 
 export function loadSettings(): AppSettings {
@@ -31,6 +49,7 @@ export function loadSettings(): AppSettings {
     return {
       rootDir: parsed.rootDir || DEFAULTS.rootDir,
       ai: { ...DEFAULTS.ai, ...(parsed.ai ?? {}) },
+      server: { ...DEFAULTS.server, ...(parsed.server ?? {}) },
     };
   } catch {
     return { ...DEFAULTS };
@@ -58,6 +77,13 @@ export function setRootDir(dir: string): void {
 export function setAi(ai: AiSettings): void {
   const s = settings();
   s.ai = ai;
+  saveSettings(s);
+  cached = s;
+}
+
+export function setServer(server: ServerSettings): void {
+  const s = settings();
+  s.server = server;
   saveSettings(s);
   cached = s;
 }

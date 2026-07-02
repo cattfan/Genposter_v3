@@ -25,6 +25,8 @@ export const paths = {
   recipe: (id: string) => join(root(), "recipes", `${id}.yaml`),
   outputDir: () => join(root(), "output"),
   outputSub: (rel: string) => join(root(), rel),
+  /** Local cache of server data, per province. */
+  cacheDir: (province: string) => join(root(), "data", "cache", province),
 };
 
 /** Slugify a free-form name into a safe file id. */

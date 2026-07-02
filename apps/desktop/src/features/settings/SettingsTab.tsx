@@ -8,6 +8,8 @@ import {
   Card,
   Group,
   PasswordInput,
+  Progress,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -17,6 +19,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import {
   IconCheck,
+  IconCloudDownload,
   IconDeviceFloppy,
   IconFolderOpen,
   IconPlugConnected,
@@ -27,7 +30,9 @@ import { testAi, type AiTestResult } from "../../lib/ai.js";
 import { clearMappingCache } from "../../lib/mapping.js";
 import { clearWorkbookCache } from "../../lib/excel.js";
 import { clearPhotoCache } from "../../lib/photos.js";
-import { setAi, setRootDir, settings } from "../../lib/settings.js";
+import { testServer } from "../../lib/server-api.js";
+import { setAi, setRootDir, setServer, settings } from "../../lib/settings.js";
+import { syncProvince } from "../../lib/sync.js";
 import "./settings.css";
 
 export function SettingsTab() {
@@ -36,8 +41,18 @@ export function SettingsTab() {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
 
+  const [srvUrl, setSrvUrl] = useState("");
+  const [srvToken, setSrvToken] = useState("");
+  const [srvBaseId, setSrvBaseId] = useState("");
+  const [srvProvince, setSrvProvince] = useState("dalat");
+  const [srvSource, setSrvSource] = useState<"excel" | "server">("excel");
+
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<AiTestResult | null>(null);
+  const [srvTesting, setSrvTesting] = useState(false);
+  const [srvResult, setSrvResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProg, setSyncProg] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     const s = settings();
@@ -45,6 +60,11 @@ export function SettingsTab() {
     setBaseUrl(s.ai.baseUrl);
     setApiKey(s.ai.apiKey);
     setModel(s.ai.model);
+    setSrvUrl(s.server.url);
+    setSrvToken(s.server.token);
+    setSrvBaseId(s.server.baseId);
+    setSrvProvince(s.server.province);
+    setSrvSource(s.server.source);
   }, []);
 
   async function pickRoot() {
@@ -60,13 +80,60 @@ export function SettingsTab() {
     setTesting(false);
   }
 
-  function saveAll() {
+  function serverSettings() {
+    return {
+      url: srvUrl.trim().replace(/\/$/, ""),
+      token: srvToken.trim(),
+      baseId: srvBaseId.trim(),
+      province: srvProvince.trim() || "dalat",
+      source: srvSource,
+    };
+  }
+
+  async function doTestServer() {
+    setSrvTesting(true);
+    setSrvResult(null);
+    const t0 = performance.now();
+    try {
+      const tables = await testServer(serverSettings());
+      setSrvResult({
+        ok: true,
+        msg: `OK (${Math.round(performance.now() - t0)} ms) — ${tables.length} bảng: ${tables.slice(0, 5).join(", ")}…`,
+      });
+    } catch (e) {
+      setSrvResult({ ok: false, msg: String(e instanceof Error ? e.message : e) });
+    } finally {
+      setSrvTesting(false);
+    }
+  }
+
+  async function doSync() {
+    saveAll(false);
+    setSyncing(true);
+    setSyncProg({ done: 0, total: 0 });
+    try {
+      const r = await syncProvince({
+        onProgress: (done, total) => setSyncProg({ done, total }),
+      });
+      notifications.show({
+        color: "teal",
+        message: `Đồng bộ xong: ${r.rows} dòng, tải ${r.photosDownloaded} ảnh mới, giữ ${r.photosKept} ảnh cũ${r.removedRecords ? `, dọn ${r.removedRecords} mục đã xoá` : ""}.`,
+      });
+    } catch (e) {
+      notifications.show({ color: "red", message: `Lỗi đồng bộ: ${String(e)}` });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  function saveAll(notify = true) {
     setRootDir(rootDir);
     setAi({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), model: model.trim() });
+    setServer(serverSettings());
     clearMappingCache();
     clearWorkbookCache();
     clearPhotoCache();
-    notifications.show({ color: "teal", message: "Đã lưu cài đặt." });
+    if (notify) notifications.show({ color: "teal", message: "Đã lưu cài đặt." });
   }
 
   return (
@@ -97,6 +164,84 @@ export function SettingsTab() {
               </Tooltip>
             }
           />
+        </Card>
+
+        <Card withBorder radius="lg" padding="lg">
+          <Title order={5} mb="sm">
+            Server dữ liệu (NocoDB)
+          </Title>
+          <Stack gap="sm">
+            <Box>
+              <Text size="sm" fw={500} mb={4}>
+                Nguồn dữ liệu tab Tạo ảnh
+              </Text>
+              <SegmentedControl
+                value={srvSource}
+                onChange={(v) => setSrvSource(v as "excel" | "server")}
+                data={[
+                  { value: "excel", label: "Excel local" },
+                  { value: "server", label: "Server (cache đã đồng bộ)" },
+                ]}
+              />
+            </Box>
+            <TextInput
+              label="URL server"
+              placeholder="http://180.93.114.89:8080"
+              value={srvUrl}
+              onChange={(e) => setSrvUrl(e.currentTarget.value)}
+            />
+            <Group grow>
+              <PasswordInput
+                label="API token (xc-token)"
+                placeholder="token chỉ-đọc của app"
+                value={srvToken}
+                onChange={(e) => setSrvToken(e.currentTarget.value)}
+              />
+              <TextInput
+                label="Base ID"
+                placeholder="prv…"
+                value={srvBaseId}
+                onChange={(e) => setSrvBaseId(e.currentTarget.value)}
+              />
+              <TextInput
+                label="Tỉnh"
+                placeholder="dalat"
+                value={srvProvince}
+                onChange={(e) => setSrvProvince(e.currentTarget.value)}
+              />
+            </Group>
+
+            {srvResult && (
+              <Alert
+                color={srvResult.ok ? "teal" : "red"}
+                icon={srvResult.ok ? <IconCheck size={18} /> : <IconX size={18} />}
+              >
+                {srvResult.msg}
+              </Alert>
+            )}
+            {syncing && syncProg.total > 0 && (
+              <Progress value={(syncProg.done / syncProg.total) * 100} animated />
+            )}
+
+            <Group justify="flex-end">
+              <Button
+                variant="default"
+                leftSection={<IconPlugConnected size={18} />}
+                onClick={() => void doTestServer()}
+                loading={srvTesting}
+              >
+                Test server
+              </Button>
+              <Button
+                variant="light"
+                leftSection={<IconCloudDownload size={18} />}
+                onClick={() => void doSync()}
+                loading={syncing}
+              >
+                Đồng bộ về máy
+              </Button>
+            </Group>
+          </Stack>
         </Card>
 
         <Card withBorder radius="lg" padding="lg">
@@ -142,7 +287,7 @@ export function SettingsTab() {
               >
                 Test kết nối
               </Button>
-              <Button leftSection={<IconDeviceFloppy size={18} />} onClick={saveAll}>
+              <Button leftSection={<IconDeviceFloppy size={18} />} onClick={() => saveAll()}>
                 Lưu
               </Button>
             </Group>

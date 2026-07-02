@@ -1,0 +1,50 @@
+# Genposter data server: PostgreSQL + NocoDB.
+# Lives at /opt/genposter on the VPS; secrets come from /opt/genposter/.env
+# (PG_PASSWORD=...) which is never committed to git.
+#
+# When a domain is available, add a Caddy service:
+#   caddy:
+#     image: caddy:2
+#     restart: unless-stopped
+#     ports: ["80:80", "443:443"]
+#     command: caddy reverse-proxy --from https://data.example.com --to nocodb:8080
+# and stop publishing 8080 on nocodb.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genposter
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: genposter
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genposter -d genposter"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nocodb:
+    image: nocodb/nocodb:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      NC_DB: "pg://postgres:5432?u=genposter&p=${PG_PASSWORD}&d=genposter"
+      NC_PUBLIC_URL: "${NC_PUBLIC_URL:-http://localhost:8080}"
+      NC_DISABLE_TELE: "true"
+      NC_INVITE_ONLY_SIGNUP: "${NC_INVITE_ONLY_SIGNUP:-false}"
+      # Some source photos are 30MB+; default 20MB would reject them.
+      NC_ATTACHMENT_FIELD_SIZE: "104857600"
+      NC_REQUEST_BODY_SIZE: "10485760"
+    volumes:
+      - nc_data:/usr/app/data
+
+volumes:
+  pgdata:
+  nc_data:
