@@ -21,9 +21,9 @@ import {
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconDeviceFloppy,
   IconDownload,
-  IconFilePlus,
   IconFolderOpen,
 } from "@tabler/icons-react";
 import type { TemplateSet } from "@genposter/schema";
@@ -33,8 +33,11 @@ import { sheetColumns, listSheets, type SheetInfo } from "../../lib/excel.js";
 import { loadMapping } from "../../lib/mapping.js";
 import { renderSetsToZip } from "../../lib/render.js";
 import {
+  deleteRecipe,
+  duplicateRecipe,
   listRecipes,
   loadRecipe,
+  renameRecipe,
   saveRecipe,
   type RecipeSummary,
 } from "../../lib/recipe-io.js";
@@ -49,6 +52,7 @@ import { buildKhuonPlan } from "../../lib/khuon-plan.js";
 import { timestampZipName } from "../../lib/zip.js";
 import { allElements, extractSetPages, type PageElements } from "./elements.js";
 import { ProduceBindingsPanel } from "./ProduceBindingsPanel.js";
+import { ProduceHome } from "./ProduceHome.js";
 import {
   draftToRecipe,
   emptyDraft,
@@ -77,6 +81,7 @@ export function ProduceTab() {
   const [result, setResult] = useState<{ dest: string; summaries: string[] } | null>(null);
   const [candidateCount, setCandidateCount] = useState(0);
   const [dataErr, setDataErr] = useState<string | null>(null);
+  const [view, setView] = useState<"home" | "editor">("home");
 
   const setD = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -189,6 +194,55 @@ export function ProduceTab() {
     }
   }
 
+  async function openRecipe(id: string) {
+    setResult(null);
+    await chooseRecipe(id);
+    setView("editor");
+  }
+
+  async function createRecipe(templateId: string, name: string) {
+    setResult(null);
+    setColumns([]);
+    setCanonFields([]);
+    const base = { ...emptyDraft(templateId), name: name || "Khuôn mới" };
+    await chooseSet(templateId, base);
+    setView("editor");
+  }
+
+  async function backToHome() {
+    setRecipes(await listRecipes());
+    setView("home");
+  }
+
+  async function handleDuplicate(id: string) {
+    try {
+      await duplicateRecipe(id);
+      setRecipes(await listRecipes());
+      ok("Đã nhân bản khuôn");
+    } catch (e) {
+      fail(`Lỗi nhân bản: ${String(e)}`);
+    }
+  }
+
+  async function handleRename(id: string, name: string) {
+    try {
+      await renameRecipe(id, name);
+      setRecipes(await listRecipes());
+    } catch (e) {
+      fail(`Lỗi đổi tên: ${String(e)}`);
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!window.confirm(`Xoá khuôn "${name}"? Không thể hoàn tác.`)) return;
+    try {
+      await deleteRecipe(id);
+      setRecipes(await listRecipes());
+    } catch (e) {
+      fail(`Lỗi xoá: ${String(e)}`);
+    }
+  }
+
   async function generateAndExport() {
     if (!templateSet) return;
     setBusy(true);
@@ -233,13 +287,47 @@ export function ProduceTab() {
 
   const percent = progress.total > 0 ? (progress.done / progress.total) * 100 : 0;
 
+  if (view === "home") {
+    return (
+      <div className="produce">
+        {dataErr && (
+          <Alert
+            icon={<IconAlertTriangle size={18} />}
+            color="red"
+            title="Chưa đọc được dữ liệu"
+            m="md"
+          >
+            {dataErr}
+          </Alert>
+        )}
+        <ProduceHome
+          recipes={recipes}
+          sets={sets}
+          onOpen={(id) => void openRecipe(id)}
+          onCreate={(templateId, name) => void createRecipe(templateId, name)}
+          onDuplicate={(id) => void handleDuplicate(id)}
+          onRename={(id, name) => void handleRename(id, name)}
+          onDelete={(id, name) => void handleDelete(id, name)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="produce">
       <Group className="produce-head" gap="md" align="flex-end" wrap="wrap">
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconArrowLeft size={18} />}
+          onClick={() => void backToHome()}
+        >
+          Khuôn
+        </Button>
         <Box mr="auto">
-          <Title order={3}>Tạo ảnh</Title>
+          <Title order={3}>{draft.name || "Khuôn mới"}</Title>
           <Text c="dimmed" size="sm">
-            Chọn bộ khuôn, gán dữ liệu theo trang, sinh nhiều bộ ngẫu nhiên
+            Gán dữ liệu theo trang, sinh nhiều bộ ngẫu nhiên
           </Text>
         </Box>
         <Select
@@ -251,22 +339,6 @@ export function ProduceTab() {
           data={sets.map((t) => ({ value: t.id, label: t.name }))}
           onChange={(v) => void chooseSet(v ?? "")}
         />
-        <Select
-          label="Khuôn"
-          placeholder="— Khuôn mới —"
-          w={210}
-          clearable
-          value={draft.id || null}
-          data={recipes.map((r) => ({ value: r.id, label: r.name }))}
-          onChange={(v) => void chooseRecipe(v ?? "")}
-        />
-        <Button
-          variant="default"
-          leftSection={<IconFilePlus size={18} />}
-          onClick={() => setDraft(emptyDraft(draft.templateId))}
-        >
-          Khuôn mới
-        </Button>
         <Button leftSection={<IconDeviceFloppy size={18} />} onClick={() => void savePreset()}>
           Lưu khuôn
         </Button>

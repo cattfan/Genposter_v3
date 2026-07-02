@@ -1,7 +1,7 @@
 import yaml from "js-yaml";
 import type { Recipe } from "@genposter/schema";
 
-import { ensureDir, exists, readDir, readText, writeText } from "./fsx.js";
+import { ensureDir, exists, readDir, readText, remove, writeText } from "./fsx.js";
 import { join, paths, slugify } from "./paths.js";
 
 export interface RecipeSummary {
@@ -108,4 +108,45 @@ export async function saveRecipe(recipe: Recipe): Promise<string> {
   });
   await writeText(paths.recipe(id), text);
   return id;
+}
+
+async function existingRecipeIds(): Promise<Set<string>> {
+  const dir = paths.recipesDir();
+  if (!(await exists(dir))) return new Set();
+  const entries = await readDir(dir);
+  return new Set(
+    entries
+      .filter((e) => e.isFile && e.name.endsWith(".yaml"))
+      .map((e) => e.name.replace(/\.yaml$/, "")),
+  );
+}
+
+async function uniqueRecipeId(base: string): Promise<string> {
+  const ids = await existingRecipeIds();
+  const root = slugify(base) || "khuon";
+  let id = root;
+  let n = 2;
+  while (ids.has(id)) id = `${root}-${n++}`;
+  return id;
+}
+
+export async function duplicateRecipe(id: string): Promise<string> {
+  const r = await loadRecipe(id);
+  const newId = await uniqueRecipeId(`${r.name}-copy`);
+  await ensureDir(paths.recipesDir());
+  const text = yaml.dump(
+    recipeToYaml({ ...r, id: newId, name: `${r.name} (copy)` }),
+    { lineWidth: 120, noRefs: true },
+  );
+  await writeText(paths.recipe(newId), text);
+  return newId;
+}
+
+export async function renameRecipe(id: string, name: string): Promise<void> {
+  const r = await loadRecipe(id);
+  await saveRecipe({ ...r, id, name });
+}
+
+export async function deleteRecipe(id: string): Promise<void> {
+  await remove(paths.recipe(id));
 }
