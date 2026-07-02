@@ -173,6 +173,19 @@ export interface RecipeOutput {
   quality: number;
 }
 
+/** AI-generated caption.txt shipped inside each exported set folder. */
+export interface RecipeCaption {
+  enabled: boolean;
+  /** Prompt template sent to the AI once per generated set. */
+  prompt: string;
+}
+
+export const DEFAULT_CAPTION_PROMPT = `Viết caption TikTok tiếng Việt cho một bộ ảnh review du lịch Đà Lạt, gồm 3 phần:
+Phần 1 - Tiêu đề: giật gân, gây tò mò, luôn dưới 90 ký tự để không bị cắt khi hiển thị.
+Phần 2 - Nội dung: giải nghĩa thêm cho tiêu đề, tối đa 300 ký tự, nhồi từ khóa SEO phổ biến liên quan chủ đề.
+Phần 3 - Hashtags: chốt bằng đúng 5 hashtag — 3 bắt buộc #riviudalat #dalat #dalatreview + 2 hashtag tự tạo viết liền không dấu, phổ biến cho du lịch Đà Lạt.
+Ba phần cách nhau một dòng trống. Chỉ trả về caption hoàn chỉnh, không giải thích, không markdown.`;
+
 export interface Recipe {
   id: string;
   name: string;
@@ -192,6 +205,7 @@ export interface Recipe {
   /** How many sets to generate per run. */
   randomSetCount: number;
   bindings: ElementBinding[];
+  caption: RecipeCaption;
   output: RecipeOutput;
 }
 

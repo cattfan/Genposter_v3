@@ -1,0 +1,22 @@
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.settings-head {
+  padding: 14px 18px;
+  background: #fff;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+}
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}

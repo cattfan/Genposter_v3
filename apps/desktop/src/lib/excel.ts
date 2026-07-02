@@ -78,6 +78,28 @@ export async function sheetColumns(sheet: string): Promise<string[]> {
   return rows.length ? Object.keys(rows[0]!) : [];
 }
 
+/** Every sheet name in the workbook, in file order (not just mapped ones). */
+export async function listAllSheetNames(): Promise<string[]> {
+  const wb = await workbook();
+  return [...wb.SheetNames];
+}
+
+/**
+ * Raw 2D grid of a sheet exactly as laid out in the file (row 0 = header row),
+ * preserving column order — for the spreadsheet-style Data tab.
+ */
+export async function sheetGrid(sheet: string): Promise<string[][]> {
+  const wb = await workbook();
+  const ws = wb.Sheets[sheet];
+  if (!ws) throw new Error(`Sheet không tồn tại trong Excel: ${sheet}`);
+  const rows = XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: "",
+    raw: false,
+  }) as unknown[][];
+  return rows.map((r) => r.map((c) => (c == null ? "" : String(c))));
+}
+
 /** Map raw rows to canonical fields defined in mapping.yaml; keep _raw for filtering. */
 export async function canonicalRows(
   sheet: string,

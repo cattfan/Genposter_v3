@@ -1,5 +1,5 @@
 import yaml from "js-yaml";
-import type { Recipe } from "@genposter/schema";
+import { DEFAULT_CAPTION_PROMPT, type Recipe } from "@genposter/schema";
 
 import { ensureDir, exists, readDir, readText, remove, writeText } from "./fsx.js";
 import { join, paths, slugify } from "./paths.js";
@@ -23,6 +23,7 @@ interface RecipeYaml {
   photos?: { per_item?: number; per_set?: number };
   random_set_count?: number;
   bindings?: { elementId: string; bind: string; label?: string }[];
+  caption?: { enabled?: boolean; prompt?: string };
   output?: { dir?: string; format?: "jpg" | "png"; quality?: number };
 }
 
@@ -46,6 +47,10 @@ function yamlToRecipe(y: RecipeYaml, id: string): Recipe {
       bind: b.bind,
       label: b.label,
     })),
+    caption: {
+      enabled: y.caption?.enabled ?? false,
+      prompt: y.caption?.prompt ?? DEFAULT_CAPTION_PROMPT,
+    },
     output: {
       dir: y.output?.dir ?? `output/${id}`,
       format: y.output?.format ?? "jpg",
@@ -66,6 +71,7 @@ function recipeToYaml(r: Recipe): RecipeYaml {
     photos: { per_item: r.photos.perItem, per_set: r.photos.perSet },
     random_set_count: r.randomSetCount,
     bindings: r.bindings.filter((b) => b.elementId && b.bind),
+    caption: { enabled: r.caption.enabled, prompt: r.caption.prompt },
     output: r.output,
   };
 }

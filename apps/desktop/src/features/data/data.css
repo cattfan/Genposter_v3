@@ -1,0 +1,98 @@
+.data-tab {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.data-head {
+  padding: 12px 18px;
+  background: #fff;
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+}
+
+.data-grid-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+}
+
+table.data-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  font-family: var(--rv-font-body, sans-serif);
+}
+
+.data-grid th,
+.data-grid td {
+  border-right: 1px solid var(--mantine-color-gray-3);
+  border-bottom: 1px solid var(--mantine-color-gray-3);
+  padding: 4px 8px;
+  white-space: nowrap;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  background: #fff;
+}
+
+/* Column letters (A, B, C…) */
+.data-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f1f3f5;
+  color: var(--mantine-color-gray-7);
+  font-weight: 600;
+  text-align: center;
+  min-width: 64px;
+}
+
+/* Row-number gutter */
+.data-grid .rownum {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #f1f3f5;
+  color: var(--mantine-color-gray-7);
+  text-align: center;
+  font-weight: 600;
+  min-width: 44px;
+  max-width: 60px;
+}
+.data-grid thead .rownum {
+  z-index: 4;
+}
+
+/* First data row = header row of the sheet: bold + sticky under letters */
+.data-grid tbody tr.headrow td {
+  position: sticky;
+  top: 27px;
+  z-index: 1;
+  background: #fff7f0;
+  font-weight: 700;
+}
+.data-grid tbody tr.headrow td.rownum {
+  z-index: 2;
+  background: #f1f3f5;
+}
+
+.data-grid tbody tr:hover td {
+  background: var(--mantine-color-gray-0);
+}
+.data-grid tbody tr.headrow:hover td {
+  background: #fff7f0;
+}
+
+/* Sheet tab bar (Google Sheets style, bottom) */
+.data-sheetbar {
+  border-top: 1px solid var(--mantine-color-gray-3);
+  background: #fff;
+  padding: 6px 12px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 0 0 auto;
+}

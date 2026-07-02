@@ -200,13 +200,27 @@ export interface RenderProgress {
   onProgress?: (done: number, total: number, file: string) => void;
 }
 
-/** Render every set×page to in-memory images and return zip bytes. */
-export async function renderSetsToZip(
+export interface RenderedPage {
+  bytes: Uint8Array;
+  /** Object URL for on-screen preview; revoke via revokeRenderedSets. */
+  previewUrl: string;
+}
+
+export interface RenderedSet {
+  setIndex: number;
+  pages: RenderedPage[];
+}
+
+/**
+ * Render every set×page to in-memory images once. The bytes are reused for
+ * the zip export so deselecting/exporting never re-renders.
+ */
+export async function renderSets(
   set: TemplateSet,
   payload: GeneratePayload,
   recipe: Recipe,
   opts: RenderProgress = {},
-): Promise<{ zipBytes: Uint8Array; fileCount: number }> {
+): Promise<RenderedSet[]> {
   await ensureFonts();
 
   const plan = buildKhuonPlan(set);
@@ -214,14 +228,15 @@ export async function renderSetsToZip(
   const binds = bindMap(recipe.bindings);
 
   const ext = recipe.output.format === "png" ? "png" : "jpg";
+  const mime = ext === "png" ? "image/png" : "image/jpeg";
   const q = Math.min(1, Math.max(0.1, (recipe.output.quality ?? 90) / 100));
 
-  const files: Record<string, Uint8Array> = {};
   const total = payload.sets.reduce((sum, s) => sum + s.pages.length, 0);
   let done = 0;
+  const out: RenderedSet[] = [];
 
   for (const gset of payload.sets) {
-    const folder = `bo${String(gset.setIndex).padStart(2, "0")}`;
+    const pages: RenderedPage[] = [];
     for (let pi = 0; pi < gset.pages.length; pi++) {
       const gpage = gset.pages[pi]!;
       const pp = pageById.get(gpage.pageId);
@@ -237,14 +252,53 @@ export async function renderSetsToZip(
       );
       const bytes =
         ext === "png" ? canvasToPngBytes(canvas) : canvasToJpegBytes(canvas, q);
-      const nameInZip = `${folder}/anh${String(pi + 1).padStart(2, "0")}.${ext}`;
-      files[nameInZip] = bytes;
       canvas.dispose();
+      // Copy into a plain ArrayBuffer-backed view to satisfy BlobPart typing.
+      const view = new Uint8Array(bytes);
+      const previewUrl = URL.createObjectURL(new Blob([view.buffer], { type: mime }));
+      pages.push({ bytes, previewUrl });
       done++;
-      opts.onProgress?.(done, total, nameInZip);
+      opts.onProgress?.(done, total, `bo${gset.setIndex}/anh${pi + 1}`);
       await new Promise((r) => setTimeout(r, 0));
+    }
+    out.push({ setIndex: gset.setIndex, pages });
+  }
+
+  return out;
+}
+
+/** Free the object URLs held by rendered sets. */
+export function revokeRenderedSets(rendered: RenderedSet[]): void {
+  for (const s of rendered) {
+    for (const p of s.pages) URL.revokeObjectURL(p.previewUrl);
+  }
+}
+
+/**
+ * Zip the given (already rendered, user-selected) sets. Each set folder gets
+ * its caption.txt when a non-empty caption exists.
+ */
+export function zipRendered(
+  rendered: RenderedSet[],
+  captions: Record<number, string>,
+  format: "jpg" | "png",
+): { zipBytes: Uint8Array; fileCount: number } {
+  const ext = format === "png" ? "png" : "jpg";
+  const files: Record<string, Uint8Array> = {};
+  let count = 0;
+
+  for (const s of rendered) {
+    const folder = `bo${String(s.setIndex).padStart(2, "0")}`;
+    for (let i = 0; i < s.pages.length; i++) {
+      files[`${folder}/anh${String(i + 1).padStart(2, "0")}.${ext}`] = s.pages[i]!.bytes;
+      count++;
+    }
+    const cap = (captions[s.setIndex] ?? "").trim();
+    if (cap) {
+      files[`${folder}/caption.txt`] = new TextEncoder().encode(cap + "\n");
+      count++;
     }
   }
 
-  return { zipBytes: makeZip(files), fileCount: done };
+  return { zipBytes: makeZip(files), fileCount: count };
 }

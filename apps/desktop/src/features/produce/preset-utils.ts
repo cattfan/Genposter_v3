@@ -1,4 +1,4 @@
-import type { Recipe } from "@genposter/schema";
+import { DEFAULT_CAPTION_PROMPT, type Recipe } from "@genposter/schema";
 
 import { slugify } from "../../lib/paths.js";
 import type { ElementInfo } from "./elements.js";
@@ -17,6 +17,8 @@ export interface Draft {
   randomSetCount: number;
   /** elementId -> binding token */
   bindings: Record<string, string>;
+  captionEnabled: boolean;
+  captionPrompt: string;
   outDir: string;
   format: "jpg" | "png";
   quality: number;
@@ -35,6 +37,8 @@ export function emptyDraft(templateId = ""): Draft {
     perSet: 0,
     randomSetCount: 5,
     bindings: {},
+    captionEnabled: true,
+    captionPrompt: DEFAULT_CAPTION_PROMPT,
     outDir: "",
     format: "jpg",
     quality: 90,
@@ -78,6 +82,10 @@ export function draftToRecipe(d: Draft, elements: ElementInfo[]): Recipe {
     photos: { perItem: d.perItem, perSet: d.perSet },
     randomSetCount: d.randomSetCount,
     bindings,
+    caption: {
+      enabled: d.captionEnabled,
+      prompt: d.captionPrompt.trim() || DEFAULT_CAPTION_PROMPT,
+    },
     output: {
       dir: d.outDir || `output/${id}`,
       format: d.format,
@@ -102,6 +110,8 @@ export function recipeToDraft(r: Recipe): Draft {
     perSet: r.photos.perSet,
     randomSetCount: r.randomSetCount,
     bindings,
+    captionEnabled: r.caption?.enabled ?? false,
+    captionPrompt: r.caption?.prompt || DEFAULT_CAPTION_PROMPT,
     outDir: r.output.dir,
     format: r.output.format,
     quality: r.output.quality,

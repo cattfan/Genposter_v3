@@ -1,25 +1,19 @@
 import { useState } from "react";
-import {
-  ActionIcon,
-  Box,
-  Stack,
-  Text,
-  ThemeIcon,
-  Tooltip,
-  UnstyledButton,
-} from "@mantine/core";
+import { Box, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from "@mantine/core";
 import {
   IconLayoutBoardSplit,
   IconPhoto,
   IconSettings,
+  IconTable,
   type IconProps,
 } from "@tabler/icons-react";
 
 import { DesignWorkspace } from "./features/editor/DesignWorkspace.js";
+import { DataTab } from "./features/data/DataTab.js";
 import { ProduceTab } from "./features/produce/ProduceTab.js";
-import { SettingsModal } from "./features/settings/SettingsModal.js";
+import { SettingsTab } from "./features/settings/SettingsTab.js";
 
-type TabId = "design" | "produce";
+type TabId = "design" | "produce" | "data" | "settings";
 
 const TABS: {
   id: TabId;
@@ -28,11 +22,12 @@ const TABS: {
 }[] = [
   { id: "design", label: "Thiết kế", Icon: IconLayoutBoardSplit },
   { id: "produce", label: "Tạo ảnh", Icon: IconPhoto },
+  { id: "data", label: "Dữ liệu", Icon: IconTable },
+  { id: "settings", label: "Cài đặt", Icon: IconSettings },
 ];
 
 export function App() {
   const [tab, setTab] = useState<TabId>("design");
-  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div className="app">
@@ -69,23 +64,11 @@ export function App() {
             );
           })}
         </Stack>
-
-        <Box style={{ flex: 1 }} />
-
-        <Tooltip label="Cài đặt" position="right" withArrow>
-          <ActionIcon
-            size="lg"
-            variant="subtle"
-            color="gray"
-            onClick={() => setShowSettings(true)}
-          >
-            <IconSettings size={20} />
-          </ActionIcon>
-        </Tooltip>
       </Box>
 
       <main className="main">
-        {/* Keep editor mounted to preserve canvas state when switching tabs. */}
+        {/* Keep editor + produce mounted so canvas state and generated sets
+            survive tab switches. */}
         <div
           style={{
             display: tab === "design" ? "flex" : "none",
@@ -95,10 +78,18 @@ export function App() {
         >
           <DesignWorkspace />
         </div>
-        {tab === "produce" && <ProduceTab />}
+        <div
+          style={{
+            display: tab === "produce" ? "flex" : "none",
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <ProduceTab />
+        </div>
+        {tab === "data" && <DataTab />}
+        {tab === "settings" && <SettingsTab />}
       </main>
-
-      <SettingsModal opened={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }

@@ -32,6 +32,9 @@ function BindingRow({
   onBind,
   onCopy,
   onPaste,
+  highlight,
+  onHover,
+  onActivate,
 }: {
   el: ElementInfo;
   bind: string;
@@ -39,13 +42,29 @@ function BindingRow({
   onBind: (bind: string) => void;
   onCopy: () => void;
   onPaste: () => void;
+  highlight: "hover" | "active" | null;
+  onHover: (id: string | null) => void;
+  onActivate: (id: string) => void;
 }) {
   const kind = bindKind(bind);
   const selectVal = kind === "static" ? "static:" : kind === "ai" ? "ai:" : bind;
   const options = buildBindOptions(canonFields, el.isImage);
 
   return (
-    <Table.Tr key={el.id}>
+    <Table.Tr
+      key={el.id}
+      data-el-row={el.id}
+      bg={
+        highlight === "active"
+          ? "var(--mantine-color-orange-0)"
+          : highlight === "hover"
+            ? "var(--mantine-color-blue-0)"
+            : undefined
+      }
+      onMouseEnter={() => onHover(el.id)}
+      onMouseLeave={() => onHover(null)}
+      onClick={() => onActivate(el.id)}
+    >
       <Table.Td>
         <Text size="sm" fw={600} truncate>
           {el.label}
@@ -109,12 +128,24 @@ export function ProduceBindingsPanel({
   elements,
   dataGroups,
   canonFields,
+  hoverId = null,
+  activeId = null,
+  onHover = () => {},
+  onActivate = () => {},
+  onHoverGroup = () => {},
+  groupColors = {},
 }: {
   draft: Draft;
   setD: (patch: Partial<Draft>) => void;
   elements: ElementInfo[];
   dataGroups: DataGroupDef[];
   canonFields: string[];
+  hoverId?: string | null;
+  activeId?: string | null;
+  onHover?: (id: string | null) => void;
+  onActivate?: (id: string) => void;
+  onHoverGroup?: (id: string | null) => void;
+  groupColors?: Record<string, string>;
 }) {
   const solo = elements.filter((e) => !e.dataGroupId);
   const byId = new Map(elements.map((e) => [e.id, e]));
@@ -145,6 +176,11 @@ export function ProduceBindingsPanel({
               const b = pasteBinding();
               if (b !== null) setBind(el.id, b);
             }}
+            highlight={
+              activeId === el.id ? "active" : hoverId === el.id ? "hover" : null
+            }
+            onHover={onHover}
+            onActivate={onActivate}
           />
         ))}
       </Table.Tbody>
@@ -158,7 +194,12 @@ export function ProduceBindingsPanel({
           <Text size="sm" fw={600}>
             Nhóm dữ liệu
           </Text>
-          <Accordion variant="separated" radius="md">
+          <Accordion
+            variant="separated"
+            radius="md"
+            multiple
+            defaultValue={dataGroups.map((g) => g.id)}
+          >
             {dataGroups.map((g) => {
               const members = g.memberIds
                 .map((id) => byId.get(id))
@@ -168,11 +209,25 @@ export function ProduceBindingsPanel({
                 .filter((e): e is ElementInfo => Boolean(e));
               return (
                 <Accordion.Item key={g.id} value={g.id}>
-                  <Accordion.Control>
+                  <Accordion.Control
+                    onMouseEnter={() => onHoverGroup(g.id)}
+                    onMouseLeave={() => onHoverGroup(null)}
+                  >
                     <Group justify="space-between" wrap="nowrap" pr="xs">
-                      <Text fw={600} size="sm">
-                        {g.label}
-                      </Text>
+                      <Group gap={8} wrap="nowrap">
+                        <span
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 999,
+                            flex: "0 0 auto",
+                            background: groupColors[g.id] ?? "var(--mantine-color-gray-4)",
+                          }}
+                        />
+                        <Text fw={600} size="sm">
+                          {g.label}
+                        </Text>
+                      </Group>
                       <Text size="xs" c="dimmed">
                         {g.mode === "slot" ? "1 dòng/bộ" : "Lặp danh sách"}
                       </Text>
