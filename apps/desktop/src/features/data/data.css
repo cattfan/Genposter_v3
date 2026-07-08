@@ -2,13 +2,28 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
 .data-head {
-  padding: 12px 18px;
-  background: #fff;
-  border-bottom: 1px solid var(--mantine-color-gray-3);
+  padding: 16px 20px;
+  background: linear-gradient(180deg, #fff 0%, #fcfcfd 100%);
+  border-bottom: 1px solid var(--rv-border);
+}
+
+.data-head__eyebrow {
+  letter-spacing: 0.12em;
+  color: var(--rv-orange);
+  margin-bottom: 2px;
+}
+
+.data-head__title {
+  letter-spacing: -0.02em;
+}
+
+.data-sync-btn {
+  box-shadow: 0 2px 8px rgba(255, 102, 0, 0.2);
 }
 
 .data-grid-wrap {
@@ -95,4 +110,105 @@ table.data-grid {
   gap: 6px;
   overflow-x: auto;
   flex: 0 0 auto;
+}
+
+.data-empty__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--rv-radius-lg);
+  background: var(--rv-orange-50);
+  border: 1px solid rgba(255, 102, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-sync-bar {
+  border-bottom: 1px solid var(--rv-border);
+  background: var(--rv-orange-50);
+}
+
+.data-grid td.col-anh,
+.data-grid th.col-anh {
+  max-width: 280px;
+  min-width: 280px;
+  width: 280px;
+  white-space: normal;
+  overflow: hidden;
+  vertical-align: middle;
+  text-overflow: clip;
+  padding: 6px;
+}
+
+/*
+ * Fixed-height horizontal filmstrip — drag/scroll sideways when a row has
+ * more photos than fit, instead of stretching the row taller per photo.
+ *
+ * The width here must be a definite px value (not max-width/100%): table
+ * columns in auto layout size to their content's min-content width, and a
+ * flex row of fixed-size thumbnails has no min-content limit of its own.
+ * A definite width caps that contribution so the column (and row height)
+ * stay fixed no matter how many photos a record has; overflow-x scrolls
+ * the rest.
+ */
+.data-grid__photos--row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  width: 268px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.data-grid__photos--row::-webkit-scrollbar {
+  height: 5px;
+}
+.data-grid__photos--row::-webkit-scrollbar-thumb {
+  background: var(--mantine-color-gray-4);
+  border-radius: 3px;
+}
+.data-grid__photos--row::-webkit-scrollbar-thumb:hover {
+  background: var(--rv-orange);
+}
+
+.data-grid__thumb-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  line-height: 0;
+  flex: 0 0 auto;
+}
+
+.data-grid__thumb {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: var(--rv-radius-sm);
+  border: 1px solid var(--rv-border);
+  display: block;
+  background: #f8f9fa;
+}
+
+.data-grid__thumb-btn:hover .data-grid__thumb {
+  outline: 2px solid var(--rv-orange);
+  outline-offset: 1px;
+}
+
+.data-photo-viewer {
+  max-width: min(92vw, 920px);
+}
+
+.data-photo-viewer__img {
+  display: block;
+  max-width: min(88vw, 880px);
+  max-height: min(78vh, 820px);
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  border-radius: var(--rv-radius-md);
+  object-fit: contain;
 }

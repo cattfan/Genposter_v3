@@ -8,8 +8,6 @@ import {
   Card,
   Group,
   PasswordInput,
-  Progress,
-  SegmentedControl,
   Stack,
   Text,
   TextInput,
@@ -17,22 +15,23 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import {
-  IconCheck,
-  IconCloudDownload,
-  IconDeviceFloppy,
-  IconFolderOpen,
-  IconPlugConnected,
-  IconX,
-} from "@tabler/icons-react";
+import { IconCheck, IconDeviceFloppy, IconFolderOpen, IconPlugConnected, IconX } from "@tabler/icons-react";
 
 import { testAi, type AiTestResult } from "../../lib/ai.js";
 import { clearMappingCache } from "../../lib/mapping.js";
 import { clearWorkbookCache } from "../../lib/excel.js";
 import { clearPhotoCache } from "../../lib/photos.js";
-import { testServer } from "../../lib/server-api.js";
-import { setAi, setRootDir, setServer, settings } from "../../lib/settings.js";
-import { syncProvince } from "../../lib/sync.js";
+import { testServerConnection, type ServerTestResult } from "../../lib/server-api.js";
+import {
+  NC_LAN_URL,
+  NC_TAILSCALE_URL,
+  setAi,
+  setRootDir,
+  setServer,
+  settings,
+  type ServerSettings,
+} from "../../lib/settings.js";
+import { AppLogo } from "../../components/AppLogo.js";
 import "./settings.css";
 
 export function SettingsTab() {
@@ -40,19 +39,12 @@ export function SettingsTab() {
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
-
-  const [srvUrl, setSrvUrl] = useState("");
-  const [srvToken, setSrvToken] = useState("");
-  const [srvBaseId, setSrvBaseId] = useState("");
-  const [srvProvince, setSrvProvince] = useState("dalat");
-  const [srvSource, setSrvSource] = useState<"excel" | "server">("excel");
-
+  const [serverUrl, setServerUrl] = useState("");
+  const [serverLanUrl, setServerLanUrl] = useState("");
   const [testing, setTesting] = useState(false);
+  const [testingServer, setTestingServer] = useState(false);
   const [testResult, setTestResult] = useState<AiTestResult | null>(null);
-  const [srvTesting, setSrvTesting] = useState(false);
-  const [srvResult, setSrvResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncProg, setSyncProg] = useState({ done: 0, total: 0 });
+  const [serverTest, setServerTest] = useState<ServerTestResult | null>(null);
 
   useEffect(() => {
     const s = settings();
@@ -60,11 +52,8 @@ export function SettingsTab() {
     setBaseUrl(s.ai.baseUrl);
     setApiKey(s.ai.apiKey);
     setModel(s.ai.model);
-    setSrvUrl(s.server.url);
-    setSrvToken(s.server.token);
-    setSrvBaseId(s.server.baseId);
-    setSrvProvince(s.server.province);
-    setSrvSource(s.server.source);
+    setServerUrl(s.server.url);
+    setServerLanUrl(s.server.lanUrl);
   }, []);
 
   async function pickRoot() {
@@ -80,147 +69,104 @@ export function SettingsTab() {
     setTesting(false);
   }
 
-  function serverSettings() {
-    return {
-      url: srvUrl.trim().replace(/\/$/, ""),
-      token: srvToken.trim(),
-      baseId: srvBaseId.trim(),
-      province: srvProvince.trim() || "dalat",
-      source: srvSource,
-    };
-  }
-
   async function doTestServer() {
-    setSrvTesting(true);
-    setSrvResult(null);
-    const t0 = performance.now();
-    try {
-      const tables = await testServer(serverSettings());
-      setSrvResult({
-        ok: true,
-        msg: `OK (${Math.round(performance.now() - t0)} ms) — ${tables.length} bảng: ${tables.slice(0, 5).join(", ")}…`,
-      });
-    } catch (e) {
-      setSrvResult({ ok: false, msg: String(e instanceof Error ? e.message : e) });
-    } finally {
-      setSrvTesting(false);
-    }
+    setTestingServer(true);
+    setServerTest(null);
+    const server: ServerSettings = {
+      ...settings().server,
+      url: serverUrl.trim() || NC_TAILSCALE_URL,
+      lanUrl: serverLanUrl.trim() || NC_LAN_URL,
+    };
+    const r = await testServerConnection(server);
+    setServerTest(r);
+    setTestingServer(false);
   }
 
-  async function doSync() {
-    saveAll(false);
-    setSyncing(true);
-    setSyncProg({ done: 0, total: 0 });
-    try {
-      const r = await syncProvince({
-        onProgress: (done, total) => setSyncProg({ done, total }),
-      });
-      notifications.show({
-        color: "teal",
-        message: `Đồng bộ xong: ${r.rows} dòng, tải ${r.photosDownloaded} ảnh mới, giữ ${r.photosKept} ảnh cũ${r.removedRecords ? `, dọn ${r.removedRecords} mục đã xoá` : ""}.`,
-      });
-    } catch (e) {
-      notifications.show({ color: "red", message: `Lỗi đồng bộ: ${String(e)}` });
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-  function saveAll(notify = true) {
+  function saveAll() {
     setRootDir(rootDir);
     setAi({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), model: model.trim() });
-    setServer(serverSettings());
+    setServer({
+      ...settings().server,
+      url: serverUrl.trim() || NC_TAILSCALE_URL,
+      lanUrl: serverLanUrl.trim() || NC_LAN_URL,
+    });
     clearMappingCache();
     clearWorkbookCache();
     clearPhotoCache();
-    if (notify) notifications.show({ color: "teal", message: "Đã lưu cài đặt." });
+    notifications.show({ color: "teal", message: "Đã lưu cài đặt." });
   }
 
   return (
     <div className="settings-tab">
-      <Group className="settings-head" align="center">
+      <Group className="settings-head" gap="md">
+        <AppLogo variant="header" />
         <Box>
           <Title order={3}>Cài đặt</Title>
-          <Text c="dimmed" size="sm">
-            Thư mục dự án và AI API dùng cho caption / đổi chữ
+          <Text size="sm" c="dimmed">
+            Thư mục dự án & AI
           </Text>
         </Box>
       </Group>
 
       <div className="settings-body">
         <Card withBorder radius="lg" padding="lg">
-          <Title order={5} mb="sm">
-            Thư mục dự án
-          </Title>
-          <TextInput
-            description="Chứa data/, templates/, recipes/, output/"
-            value={rootDir}
-            onChange={(e) => setRoot(e.currentTarget.value)}
-            rightSection={
-              <Tooltip label="Chọn thư mục…">
-                <ActionIcon variant="subtle" onClick={() => void pickRoot()}>
-                  <IconFolderOpen size={18} />
-                </ActionIcon>
-              </Tooltip>
-            }
-          />
+          <Stack gap="sm">
+            <div>
+              <Title order={5}>Thư mục dự án</Title>
+              <Text size="sm" c="dimmed" mt={4}>
+                Chứa templates/, recipes/, output/ và cache dữ liệu server. Mỗi máy chọn đúng
+                thư mục clone Genposter — không cần copy Excel/ảnh cũ nếu đã đồng bộ từ server.
+              </Text>
+            </div>
+            <TextInput
+              value={rootDir}
+              onChange={(e) => setRoot(e.currentTarget.value)}
+              rightSection={
+                <Tooltip label="Chọn thư mục…">
+                  <ActionIcon variant="subtle" onClick={() => void pickRoot()}>
+                    <IconFolderOpen size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              }
+            />
+          </Stack>
         </Card>
 
         <Card withBorder radius="lg" padding="lg">
-          <Title order={5} mb="sm">
-            Server dữ liệu (NocoDB)
-          </Title>
-          <Stack gap="sm">
-            <Box>
-              <Text size="sm" fw={500} mb={4}>
-                Nguồn dữ liệu tab Tạo ảnh
+          <Stack gap="md">
+            <div>
+              <Title order={5}>Server dữ liệu (NocoDB)</Title>
+              <Text size="sm" c="dimmed" mt={4}>
+                Mặc định qua Tailscale — dùng được ở nhà, công ty, 4G (cần bật Tailscale). Ở nhà
+                app tự thử LAN nếu Tailscale chưa kết nối.
               </Text>
-              <SegmentedControl
-                value={srvSource}
-                onChange={(v) => setSrvSource(v as "excel" | "server")}
-                data={[
-                  { value: "excel", label: "Excel local" },
-                  { value: "server", label: "Server (cache đã đồng bộ)" },
-                ]}
-              />
-            </Box>
-            <TextInput
-              label="URL server"
-              placeholder="http://180.93.114.89:8080"
-              value={srvUrl}
-              onChange={(e) => setSrvUrl(e.currentTarget.value)}
-            />
-            <Group grow>
-              <PasswordInput
-                label="API token (xc-token)"
-                placeholder="token chỉ-đọc của app"
-                value={srvToken}
-                onChange={(e) => setSrvToken(e.currentTarget.value)}
-              />
-              <TextInput
-                label="Base ID"
-                placeholder="prv…"
-                value={srvBaseId}
-                onChange={(e) => setSrvBaseId(e.currentTarget.value)}
-              />
-              <TextInput
-                label="Tỉnh"
-                placeholder="dalat"
-                value={srvProvince}
-                onChange={(e) => setSrvProvince(e.currentTarget.value)}
-              />
-            </Group>
+            </div>
 
-            {srvResult && (
+            <TextInput
+              label="URL chính (Tailscale)"
+              placeholder={NC_TAILSCALE_URL}
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.currentTarget.value)}
+            />
+            <TextInput
+              label="URL dự phòng (LAN — tùy chọn)"
+              placeholder={NC_LAN_URL}
+              value={serverLanUrl}
+              onChange={(e) => setServerLanUrl(e.currentTarget.value)}
+            />
+
+            {serverTest && (
               <Alert
-                color={srvResult.ok ? "teal" : "red"}
-                icon={srvResult.ok ? <IconCheck size={18} /> : <IconX size={18} />}
+                color={serverTest.ok ? "teal" : "red"}
+                icon={serverTest.ok ? <IconCheck size={18} /> : <IconX size={18} />}
+                title={
+                  serverTest.ok
+                    ? `Kết nối OK qua ${serverTest.via === "lan" ? "LAN" : "Tailscale"} (${serverTest.ms} ms)`
+                    : `Không kết nối được (${serverTest.ms} ms)`
+                }
               >
-                {srvResult.msg}
+                {serverTest.ok ? serverTest.url : serverTest.error}
               </Alert>
-            )}
-            {syncing && syncProg.total > 0 && (
-              <Progress value={(syncProg.done / syncProg.total) * 100} animated />
             )}
 
             <Group justify="flex-end">
@@ -228,36 +174,32 @@ export function SettingsTab() {
                 variant="default"
                 leftSection={<IconPlugConnected size={18} />}
                 onClick={() => void doTestServer()}
-                loading={srvTesting}
+                loading={testingServer}
               >
                 Test server
-              </Button>
-              <Button
-                variant="light"
-                leftSection={<IconCloudDownload size={18} />}
-                onClick={() => void doSync()}
-                loading={syncing}
-              >
-                Đồng bộ về máy
               </Button>
             </Group>
           </Stack>
         </Card>
 
         <Card withBorder radius="lg" padding="lg">
-          <Title order={5} mb="sm">
-            AI API (OpenAI-compatible)
-          </Title>
-          <Stack gap="sm">
+          <Stack gap="md">
+            <div>
+              <Title order={5}>AI API (OpenAI-compatible)</Title>
+              <Text size="sm" c="dimmed" mt={4}>
+                Dùng cho caption và đổi chữ khi tạo ảnh. Để trống API key = tắt AI.
+              </Text>
+            </div>
+
             <TextInput
               label="Base URL"
-              placeholder="https://api.deepseek.com"
+              placeholder="https://api.deepseek.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.currentTarget.value)}
             />
             <PasswordInput
               label="API key"
-              placeholder="sk-…  (để trống = tắt AI)"
+              placeholder="sk-…"
               value={apiKey}
               onChange={(e) => setApiKey(e.currentTarget.value)}
             />
@@ -278,7 +220,7 @@ export function SettingsTab() {
               </Alert>
             )}
 
-            <Group justify="flex-end" mt="xs">
+            <Group justify="flex-end" gap="sm">
               <Button
                 variant="default"
                 leftSection={<IconPlugConnected size={18} />}
@@ -287,7 +229,7 @@ export function SettingsTab() {
               >
                 Test kết nối
               </Button>
-              <Button leftSection={<IconDeviceFloppy size={18} />} onClick={() => saveAll()}>
+              <Button leftSection={<IconDeviceFloppy size={18} />} onClick={saveAll}>
                 Lưu
               </Button>
             </Group>
