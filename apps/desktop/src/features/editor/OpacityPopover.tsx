@@ -6,14 +6,15 @@ function num(v: unknown, d = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.round(v) : d;
 }
 
-export function TextOpacityPopover({
-  text,
+/** Opacity control shared by the text / shape / image context bars. */
+export function OpacityPopover({
+  obj,
   onPatch,
 }: {
-  text: fabric.Textbox;
+  obj: fabric.Object;
   onPatch: (p: Record<string, unknown>) => void;
 }) {
-  const pct = num((text.opacity ?? 1) * 100, 100);
+  const pct = num((obj.opacity ?? 1) * 100, 100);
 
   return (
     <Popover width={220} position="bottom" withArrow withinPortal shadow="md">

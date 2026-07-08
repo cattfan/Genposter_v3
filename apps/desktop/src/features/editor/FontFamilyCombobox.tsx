@@ -101,6 +101,21 @@ export function FontFamilyCombobox({
           rightSection={<Combobox.Chevron />}
           onClick={() => combobox.toggleDropdown()}
           rightSectionPointerEvents="none"
+          // In the context bar every control is 36px tall with 8px radius.
+          styles={
+            compact
+              ? {
+                  input: {
+                    height: 36,
+                    minHeight: 36,
+                    display: "flex",
+                    alignItems: "center",
+                    borderRadius: 8,
+                    borderColor: "var(--mantine-color-gray-3)",
+                  },
+                }
+              : undefined
+          }
         >
           <Text style={getFontPreviewStyle(value)} size="sm" truncate>
             {value}

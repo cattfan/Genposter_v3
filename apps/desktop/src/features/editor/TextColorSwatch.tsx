@@ -1,16 +1,8 @@
 import { useState } from "react";
 import * as fabric from "fabric";
-import {
-  ActionIcon,
-  ColorInput,
-  Popover,
-  SimpleGrid,
-  Stack,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
+import { Popover, Text, UnstyledButton } from "@mantine/core";
 
-import { BRAND_COLORS, PALETTE } from "./palette.js";
+import { ColorPalettePanel } from "./ColorPalettePanel.js";
 
 export function TextColorSwatch({
   text,
@@ -23,7 +15,15 @@ export function TextColorSwatch({
   const fill = (text.fill as string) ?? "#1f1d1b";
 
   return (
-    <Popover opened={open} onChange={setOpen} width={220} position="bottom" withArrow withinPortal>
+    <Popover
+      opened={open}
+      onChange={setOpen}
+      width={260}
+      position="bottom"
+      withArrow
+      withinPortal
+      shadow="md"
+    >
       <Popover.Target>
         <UnstyledButton
           className="text-color-swatch"
@@ -37,40 +37,13 @@ export function TextColorSwatch({
         </UnstyledButton>
       </Popover.Target>
       <Popover.Dropdown>
-        <Stack gap="xs">
-          <Text size="xs" fw={600}>
-            Màu chữ
-          </Text>
-          <SimpleGrid cols={5} spacing={6}>
-            {BRAND_COLORS.map((c) => (
-              <ActionIcon
-                key={c.value}
-                variant="default"
-                size="md"
-                aria-label={c.label}
-                onClick={() => {
-                  onChange(c.value);
-                  setOpen(false);
-                }}
-                style={{
-                  background: c.value,
-                  border:
-                    c.value.toLowerCase() === "#ffffff"
-                      ? "1px solid var(--mantine-color-gray-4)"
-                      : undefined,
-                }}
-              />
-            ))}
-          </SimpleGrid>
-          <ColorInput
-            size="xs"
-            value={fill}
-            onChange={(c) => onChange(c)}
-            swatches={PALETTE}
-            swatchesPerRow={8}
-            format="hex"
-          />
-        </Stack>
+        <ColorPalettePanel
+          title="Màu chữ"
+          value={fill}
+          onChange={onChange}
+          closeOnPick
+          onClose={() => setOpen(false)}
+        />
       </Popover.Dropdown>
     </Popover>
   );

@@ -18,6 +18,11 @@ export async function renderThumb(
   });
   try {
     await canvas.loadFromJSON(scene);
+    // JPEG has no alpha — transparent scenes (old files without a saved
+    // background) would come out black, so default to white.
+    if (!canvas.backgroundColor && !canvas.backgroundImage) {
+      canvas.backgroundColor = "#ffffff";
+    }
     canvas.setDimensions({ width, height });
     canvas.renderAll();
     const multiplier = Math.min(1, maxW / Math.max(1, width));

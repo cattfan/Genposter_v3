@@ -24,7 +24,8 @@ const PAGE_ALIGNS: { kind: AlignKind; label: string; icon: React.ReactNode }[] =
   { kind: "bottom", label: "Căn dưới", icon: <IconLayoutAlignBottom size={16} /> },
 ];
 
-export function TextPositionPopover({ ed }: { ed: EditorApi }) {
+/** Page-align + layer-order controls shared by all context bars. */
+export function PositionPopover({ ed }: { ed: EditorApi }) {
   return (
     <Popover width={240} position="bottom" withArrow withinPortal shadow="md">
       <Popover.Target>

@@ -1,94 +1,112 @@
-import { useState } from "react";
-import { Box, Stack, Text, ThemeIcon, Tooltip, UnstyledButton } from "@mantine/core";
+import { useEffect, useState } from "react";
+import { Box } from "@mantine/core";
 import {
   IconLayoutBoardSplit,
   IconPhoto,
   IconSettings,
   IconTable,
-  type IconProps,
 } from "@tabler/icons-react";
 
+import { AppRail } from "./components/AppRail.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { DesignWorkspace } from "./features/editor/DesignWorkspace.js";
 import { DataTab } from "./features/data/DataTab.js";
 import { ProduceTab } from "./features/produce/ProduceTab.js";
 import { SettingsTab } from "./features/settings/SettingsTab.js";
+import { hideDataStaleToast, showDataStaleToast } from "./lib/data-stale-toast.js";
+import { onUpdateStatus, startUpdatePolling } from "./lib/update-poller.js";
 
 type TabId = "design" | "produce" | "data" | "settings";
 
-const TABS: {
-  id: TabId;
-  label: string;
-  Icon: React.ComponentType<IconProps>;
-}[] = [
-  { id: "design", label: "Thiết kế", Icon: IconLayoutBoardSplit },
-  { id: "produce", label: "Tạo ảnh", Icon: IconPhoto },
-  { id: "data", label: "Dữ liệu", Icon: IconTable },
-  { id: "settings", label: "Cài đặt", Icon: IconSettings },
+const TABS = [
+  { id: "design" as const, label: "Thiết kế", Icon: IconLayoutBoardSplit },
+  { id: "produce" as const, label: "Tạo ảnh", Icon: IconPhoto },
+  { id: "data" as const, label: "Dữ liệu", Icon: IconTable },
+  { id: "settings" as const, label: "Cài đặt", Icon: IconSettings },
 ];
+
+function tabStyle(active: boolean): React.CSSProperties {
+  // minWidth/minHeight: 0 override the flex-item default of `min-width: auto`,
+  // which otherwise lets wide content (e.g. the Data grid) push past the
+  // panel instead of scrolling inside it.
+  return { display: active ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0 };
+}
 
 export function App() {
   const [tab, setTab] = useState<TabId>("design");
+  const [dataStale, setDataStale] = useState(false);
+
+  useEffect(() => {
+    startUpdatePolling();
+    // Only genuine server-side changes count — offline must not raise the toast.
+    return onUpdateStatus((st) => setDataStale(st.stale));
+  }, []);
+
+  useEffect(() => {
+    // Ctrl+wheel / Ctrl+± normally zoom the whole page (browser/WebView2),
+    // scaling every panel and toolbar. Block that app-wide — the editor stage
+    // has its own Ctrl+wheel handler that zooms just the canvas.
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ["+", "=", "-", "_", "0"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dataStale || tab === "data") {
+      hideDataStaleToast();
+      return;
+    }
+    showDataStaleToast({
+      actionLabel: "Cập nhật",
+      onAction: () => setTab("data"),
+    });
+  }, [dataStale, tab]);
 
   return (
     <div className="app">
-      <Box component="aside" className="rail">
-        <ThemeIcon size={42} radius="md" variant="filled" mb="sm">
-          <Text fw={800} fz={18}>
-            G
-          </Text>
-        </ThemeIcon>
-
-        <Stack gap={6} w="100%" align="center">
-          {TABS.map(({ id, label, Icon }) => {
-            const active = tab === id;
-            return (
-              <Tooltip key={id} label={label} position="right" withArrow>
-                <UnstyledButton
-                  className="rail-btn"
-                  data-active={active || undefined}
-                  onClick={() => setTab(id)}
-                >
-                  <ThemeIcon
-                    size={38}
-                    radius="md"
-                    variant={active ? "filled" : "light"}
-                    color={active ? "riviu" : "gray"}
-                  >
-                    <Icon size={20} />
-                  </ThemeIcon>
-                  <Text fz={10} fw={600} mt={3} c={active ? "riviu" : "dimmed"}>
-                    {label}
-                  </Text>
-                </UnstyledButton>
-              </Tooltip>
-            );
-          })}
-        </Stack>
-      </Box>
+      <AppRail
+        tabs={TABS}
+        active={tab}
+        onChange={(id) => {
+          if (id === "data") hideDataStaleToast();
+          setTab(id as TabId);
+        }}
+      />
 
       <main className="main">
-        {/* Keep editor + produce mounted so canvas state and generated sets
-            survive tab switches. */}
-        <div
-          style={{
-            display: tab === "design" ? "flex" : "none",
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          <DesignWorkspace />
-        </div>
-        <div
-          style={{
-            display: tab === "produce" ? "flex" : "none",
-            flex: 1,
-            minHeight: 0,
-          }}
-        >
-          <ProduceTab />
-        </div>
-        {tab === "data" && <DataTab />}
-        {tab === "settings" && <SettingsTab />}
+        <Box className="main-stage">
+          <div style={tabStyle(tab === "design")}>
+            <ErrorBoundary label="Thiết kế">
+              <DesignWorkspace />
+            </ErrorBoundary>
+          </div>
+          <div style={tabStyle(tab === "produce")}>
+            <ErrorBoundary label="Tạo ảnh">
+              <ProduceTab active={tab === "produce"} />
+            </ErrorBoundary>
+          </div>
+          <div style={tabStyle(tab === "data")}>
+            <ErrorBoundary label="Dữ liệu">
+              <DataTab />
+            </ErrorBoundary>
+          </div>
+          <div style={tabStyle(tab === "settings")}>
+            <ErrorBoundary label="Cài đặt">
+              <SettingsTab />
+            </ErrorBoundary>
+          </div>
+        </Box>
       </main>
     </div>
   );

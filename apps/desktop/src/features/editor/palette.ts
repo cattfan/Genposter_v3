@@ -53,7 +53,7 @@ export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
     width: 400,
   },
   {
-    label: "Nhãn",
+    label: "Badge HOT",
     text: "HOT",
     fontSize: 32,
     fontWeight: "800",

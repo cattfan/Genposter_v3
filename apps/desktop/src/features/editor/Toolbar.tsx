@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Box,
   Button,
   Divider,
   Group,
@@ -21,6 +20,7 @@ import {
   IconZoomReset,
 } from "@tabler/icons-react";
 
+import { ResizeCanvasPopover } from "./ResizeCanvasPopover.js";
 import type { EditorApi } from "./useEditor.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -32,16 +32,6 @@ function SaveIndicator({
   status: SaveStatus;
   onRetry: () => void;
 }) {
-  if (status === "saving") {
-    return (
-      <Group gap={6} wrap="nowrap">
-        <Loader size={16} color="dimmed" />
-        <Text size="sm" c="dimmed">
-          Đang lưu…
-        </Text>
-      </Group>
-    );
-  }
   if (status === "error") {
     return (
       <Tooltip label="Bấm để thử lưu lại" withArrow>
@@ -54,6 +44,16 @@ function SaveIndicator({
           </Group>
         </UnstyledButton>
       </Tooltip>
+    );
+  }
+  if (status === "saving") {
+    return (
+      <Group gap={6} wrap="nowrap">
+        <Loader size={14} />
+        <Text size="sm" c="dimmed">
+          Đang lưu…
+        </Text>
+      </Group>
     );
   }
   if (status === "saved") {
@@ -78,6 +78,9 @@ export function Toolbar({
   saveStatus,
   onRetrySave,
   pageLabel,
+  canvasWidth,
+  canvasHeight,
+  onResizeCanvas,
 }: {
   ed: EditorApi;
   name: string;
@@ -87,66 +90,95 @@ export function Toolbar({
   saveStatus: SaveStatus;
   onRetrySave: () => void;
   pageLabel: string;
+  canvasWidth?: number;
+  canvasHeight?: number;
+  onResizeCanvas?: (w: number, h: number, mode: "scaleContent" | "clipOnly") => void;
 }) {
   return (
-    <Group className="editor-toolbar" gap="xs" wrap="nowrap" h={56} px="sm">
-      <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={18} />} onClick={onBack}>
-        Trang tổng
-      </Button>
-
-      <TextInput
-        value={name}
-        onChange={(e) => onName(e.currentTarget.value)}
-        onBlur={onNameBlur}
-        placeholder="Tên mẫu…"
-        w={200}
-        variant="filled"
-        styles={{ input: { fontWeight: 700 } }}
-      />
-
-      <SaveIndicator status={saveStatus} onRetry={onRetrySave} />
-
-      <Divider orientation="vertical" />
-
-      <ActionIcon.Group>
-        <Tooltip label="Hoàn tác (Ctrl+Z)">
-          <ActionIcon variant="default" size="lg" onClick={ed.undo} disabled={!ed.canUndo}>
-            <IconArrowBackUp size={20} />
+    <div className="editor-toolbar">
+      <Group gap="xs" wrap="nowrap" className="toolbar-left">
+        <Button
+          variant="subtle"
+          color="gray"
+          size="compact-sm"
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={onBack}
+        >
+          Trang tổng
+        </Button>
+        <TextInput
+          value={name}
+          onChange={(e) => onName(e.currentTarget.value)}
+          onBlur={onNameBlur}
+          placeholder="Tên mẫu…"
+          w={160}
+          size="xs"
+          variant="filled"
+          styles={{ input: { fontWeight: 700 } }}
+        />
+        <SaveIndicator status={saveStatus} onRetry={onRetrySave} />
+        <Divider orientation="vertical" />
+        <Tooltip label="Hoàn tác (Ctrl+Z)" withArrow>
+          <ActionIcon variant="default" size="md" onClick={ed.undo} disabled={!ed.canUndo}>
+            <IconArrowBackUp size={18} />
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Làm lại (Ctrl+Y)">
-          <ActionIcon variant="default" size="lg" onClick={ed.redo} disabled={!ed.canRedo}>
-            <IconArrowForwardUp size={20} />
+        <Tooltip label="Làm lại (Ctrl+Y)" withArrow>
+          <ActionIcon variant="default" size="md" onClick={ed.redo} disabled={!ed.canRedo}>
+            <IconArrowForwardUp size={18} />
           </ActionIcon>
         </Tooltip>
-      </ActionIcon.Group>
+      </Group>
 
-      <Box style={{ flex: 1 }} />
-
-      <Text size="sm" c="dimmed">
+      <Text size="sm" fw={600} c="dimmed" className="toolbar-center" truncate>
         {pageLabel}
       </Text>
 
-      <ActionIcon.Group>
-        <Tooltip label="Thu nhỏ">
-          <ActionIcon variant="default" size="lg" onClick={ed.zoomOut}>
-            <IconZoomOut size={20} />
+      <Group gap="xs" wrap="nowrap" className="toolbar-right">
+        {canvasWidth && canvasHeight && onResizeCanvas && (
+          <ResizeCanvasPopover
+            width={canvasWidth}
+            height={canvasHeight}
+            onResize={onResizeCanvas}
+          />
+        )}
+        <Group gap={0} wrap="nowrap" className="toolbar-zoom">
+          <ActionIcon
+            variant="default"
+            size="md"
+            onClick={ed.zoomOut}
+            aria-label="Thu nhỏ"
+            className="toolbar-zoom-btn toolbar-zoom-btn--first"
+          >
+            <IconZoomOut size={18} />
           </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Về 50%">
-          <ActionIcon variant="default" size="lg" onClick={() => ed.setZoom(0.5)}>
-            <IconZoomReset size={20} />
+          <Tooltip label="Đặt zoom 50%" withArrow>
+            <UnstyledButton className="toolbar-zoom-value" onClick={() => ed.setZoom(0.5)}>
+              {Math.round(ed.zoom * 100)}%
+            </UnstyledButton>
+          </Tooltip>
+          <ActionIcon
+            variant="default"
+            size="md"
+            onClick={ed.zoomIn}
+            aria-label="Phóng to"
+            className="toolbar-zoom-btn"
+          >
+            <IconZoomIn size={18} />
           </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Phóng to">
-          <ActionIcon variant="default" size="lg" onClick={ed.zoomIn}>
-            <IconZoomIn size={20} />
-          </ActionIcon>
-        </Tooltip>
-      </ActionIcon.Group>
-      <Text size="sm" w={46} ta="center" c="dimmed">
-        {Math.round(ed.zoom * 100)}%
-      </Text>
-    </Group>
+          <Tooltip label="Về 50%" withArrow>
+            <ActionIcon
+              variant="default"
+              size="md"
+              onClick={() => ed.setZoom(0.5)}
+              aria-label="Reset zoom"
+              className="toolbar-zoom-btn toolbar-zoom-btn--last"
+            >
+              <IconZoomReset size={16} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      </Group>
+    </div>
   );
 }

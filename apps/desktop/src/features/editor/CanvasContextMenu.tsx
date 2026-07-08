@@ -148,19 +148,19 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
         </Menu.Item>
 
         <Menu.Divider />
-        <Menu.Label>Style</Menu.Label>
+        <Menu.Label>Kiểu</Menu.Label>
         <Menu.Item
           leftSection={<IconBrush size={14} />}
           onClick={run(() => ed.copyStyle())}
         >
-          Sao chép style
+          Sao chép thuộc tính
         </Menu.Item>
         <Menu.Item
           leftSection={<IconClipboard size={14} />}
           disabled={!ed.canPasteStyle()}
           onClick={run(() => ed.pasteStyle())}
         >
-          Dán style
+          Dán thuộc tính
         </Menu.Item>
 
         <Menu.Divider />
@@ -181,6 +181,28 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
             Tách khỏi nhóm
           </Menu.Item>
         )}
+        {groupId && (
+          <Menu.Item
+            leftSection={<IconStack2 size={14} />}
+            onClick={run(() => ed.selectDataGroupMembers(groupId))}
+          >
+            Chọn cả nhóm
+          </Menu.Item>
+        )}
+        {obj && !groupId && ed.getDataGroups().length > 0 && (
+          <>
+            <Menu.Label>Thêm vào nhóm</Menu.Label>
+            {ed.getDataGroups().map((g) => (
+              <Menu.Item
+                key={g.id}
+                leftSection={<IconLink size={14} />}
+                onClick={run(() => ed.addToDataGroup(g.id))}
+              >
+                {g.label}
+              </Menu.Item>
+            ))}
+          </>
+        )}
         {many.length >= 2 && (
           <Menu.Item
             leftSection={<IconStack2 size={14} />}
@@ -197,6 +219,22 @@ export function CanvasContextMenu({ ed }: { ed: EditorApi }) {
             Bỏ nhóm layout
           </Menu.Item>
         )}
+
+        <Menu.Divider />
+        <Menu.Label>Đa trang</Menu.Label>
+        <Menu.Item
+          leftSection={<IconCopy size={14} />}
+          onClick={run(() => ed.copyObjectsCrossPage())}
+        >
+          Sao chép sang trang khác
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconClipboard size={14} />}
+          disabled={!ed.canPasteObjectsCrossPage()}
+          onClick={run(() => void ed.pasteObjectsCrossPage())}
+        >
+          Dán từ trang khác
+        </Menu.Item>
 
         <Menu.Divider />
         <Menu.Item

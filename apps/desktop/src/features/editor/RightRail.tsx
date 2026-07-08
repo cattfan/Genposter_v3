@@ -10,7 +10,7 @@ export function RightRail({
 }) {
   return (
     <aside className="panel right-rail">
-      <Tooltip label="Inspector" position="left">
+      <Tooltip label="Thuộc tính" position="left">
         <ActionIcon
           variant={active ? "filled" : "default"}
           color={active ? "riviu" : "gray"}

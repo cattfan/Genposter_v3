@@ -1,6 +1,6 @@
 import type { DataGroupDef } from "@genposter/schema";
 
-import { getId, getStr, setProp } from "../../lib/fabric-util.js";
+import { flattenObjects, getId, getStr, setProp } from "../../lib/fabric-util.js";
 import { slugify } from "../../lib/paths.js";
 import { migrateSceneDataGroups } from "../../lib/scene-groups.js";
 import type * as fabric from "fabric";
@@ -11,7 +11,9 @@ export function syncGroupMembers(
   groups: DataGroupDef[],
   canvas: fabric.Canvas,
 ): DataGroupDef[] {
-  const byId = new Map(canvas.getObjects().map((o) => [getId(o), o]));
+  // Descend into layout groups ("Nhóm layout") — members nested inside a
+  // fabric.Group must not look "deleted" just because they're not top-level.
+  const byId = new Map(flattenObjects(canvas.getObjects()).map((o) => [getId(o), o]));
   return groups
     .map((g) => ({
       ...g,
@@ -80,4 +82,19 @@ export function updateGroup(
   patch: Partial<DataGroupDef>,
 ): DataGroupDef[] {
   return groups.map((g) => (g.id === groupId ? { ...g, ...patch } : g));
+}
+
+export function appendMembersToGroup(
+  groups: DataGroupDef[],
+  groupId: string,
+  memberIds: string[],
+): DataGroupDef[] {
+  return groups.map((g) => {
+    if (g.id !== groupId) return g;
+    const merged = [...g.memberIds];
+    for (const id of memberIds) {
+      if (!merged.includes(id)) merged.push(id);
+    }
+    return { ...g, memberIds: merged };
+  });
 }

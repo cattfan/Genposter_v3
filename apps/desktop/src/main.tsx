@@ -12,7 +12,7 @@ import { App } from "./App.js";
 // Note: no StrictMode — Fabric canvases dislike double-mounted effects in dev.
 createRoot(document.getElementById("root")!).render(
   <MantineProvider theme={theme} defaultColorScheme="light">
-    <Notifications position="top-right" />
+    <Notifications position="bottom-right" />
     <App />
   </MantineProvider>,
 );

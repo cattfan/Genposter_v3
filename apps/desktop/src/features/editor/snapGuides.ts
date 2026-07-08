@@ -1,6 +1,7 @@
 import * as fabric from "fabric";
 
 import { getObjectGroupId } from "./dataGroups.js";
+import { isPageFrame, PASTEBOARD_PAD } from "./pasteboard.js";
 
 const SNAP_THRESHOLD = 6;
 const GUIDE_COLOR = "#ff6600";
@@ -143,11 +144,12 @@ function collectTargets(
   pageW: number,
   pageH: number,
 ): { vertical: number[]; horizontal: number[] } {
-  const vertical = [0, pageW / 2, pageW];
-  const horizontal = [0, pageH / 2, pageH];
+  const pad = PASTEBOARD_PAD;
+  const vertical = [pad, pad + pageW / 2, pad + pageW];
+  const horizontal = [pad, pad + pageH / 2, pad + pageH];
 
   for (const obj of canvas.getObjects()) {
-    if (!obj.visible || moving.has(obj)) continue;
+    if (!obj.visible || moving.has(obj) || isPageFrame(obj)) continue;
     const b = boundsOf(obj);
     vertical.push(b.left, b.centerX, b.right);
     horizontal.push(b.top, b.centerY, b.bottom);
@@ -186,6 +188,7 @@ function drawGuides(
   const vpt = canvas.viewportTransform;
   if (!vpt) return;
 
+  const pad = PASTEBOARD_PAD;
   const zoom = canvas.getZoom();
   ctx.save();
   ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
@@ -195,14 +198,14 @@ function drawGuides(
 
   for (const x of vertical) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, pageH);
+    ctx.moveTo(x, pad);
+    ctx.lineTo(x, pad + pageH);
     ctx.stroke();
   }
   for (const y of horizontal) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(pageW, y);
+    ctx.moveTo(pad, y);
+    ctx.lineTo(pad + pageW, y);
     ctx.stroke();
   }
 
@@ -246,6 +249,11 @@ export function attachSnapGuides(
     stickyHull = null;
   };
 
+  const clearAndRender = () => {
+    clearOverlay();
+    canvas.requestRenderAll();
+  };
+
   const onMoving = (e: { target?: fabric.FabricObject }) => {
     const target = e.target;
     if (!target) return;
@@ -278,7 +286,7 @@ export function attachSnapGuides(
     let edgeYDist = SNAP_THRESHOLD + 1;
 
     for (const obj of canvas.getObjects()) {
-      if (!obj.visible || moving.has(obj)) continue;
+      if (!obj.visible || moving.has(obj) || isPageFrame(obj)) continue;
       const other = boundsOf(obj);
 
       const dx = findEdgeSnapX(b, other);
@@ -309,20 +317,23 @@ export function attachSnapGuides(
   };
 
   const onEnd = () => {
-    clearOverlay();
-    canvas.requestRenderAll();
+    clearAndRender();
   };
 
   canvas.on("object:moving", onMoving);
   canvas.on("after:render", onAfterRender);
   canvas.on("mouse:up", onEnd);
   canvas.on("object:modified", onEnd);
+  canvas.on("object:removed", clearAndRender);
+  canvas.on("selection:cleared", clearAndRender);
 
   return () => {
     canvas.off("object:moving", onMoving);
     canvas.off("after:render", onAfterRender);
     canvas.off("mouse:up", onEnd);
     canvas.off("object:modified", onEnd);
+    canvas.off("object:removed", clearAndRender);
+    canvas.off("selection:cleared", clearAndRender);
     clearOverlay();
   };
 }

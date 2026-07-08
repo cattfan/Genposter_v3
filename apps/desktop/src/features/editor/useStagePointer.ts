@@ -3,8 +3,13 @@ import { useEffect, type RefObject } from "react";
 import type { EditorApi } from "./useEditor.js";
 
 /** Forward clicks/drags from gray stage padding to Fabric canvas (marquee / deselect). */
-export function useStagePointer(stageRef: RefObject<HTMLDivElement | null>, ed: EditorApi) {
+export function useStagePointer(
+  stageRef: RefObject<HTMLDivElement | null>,
+  ed: EditorApi,
+  disabled = false,
+) {
   useEffect(() => {
+    if (disabled) return;
     const stage = stageRef.current;
     const canvas = ed.getCanvas();
     if (!stage || !canvas || !ed.ready) return;
@@ -43,5 +48,5 @@ export function useStagePointer(stageRef: RefObject<HTMLDivElement | null>, ed: 
       stage.removeEventListener("mousedown", onMouseDown);
       stage.removeEventListener("wheel", onWheel);
     };
-  }, [ed, ed.ready, stageRef]);
+  }, [disabled, ed, ed.ready, stageRef]);
 }

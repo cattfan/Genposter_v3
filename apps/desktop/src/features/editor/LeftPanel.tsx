@@ -1,51 +1,46 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ActionIcon,
-  Badge,
   Button,
-  ColorInput,
   Group,
-  ScrollArea,
-  SimpleGrid,
+  Select,
   Stack,
   Tabs,
   Text,
+  TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import {
-  IconChevronDown,
-  IconChevronUp,
-  IconCircle,
   IconColorSwatch,
-  IconDatabase,
-  IconEye,
-  IconEyeOff,
   IconHeading,
   IconLine,
-  IconLock,
+  IconMoodSmile,
   IconPhoto,
   IconPhotoPlus,
   IconPlus,
+  IconSearch,
   IconSquare,
-  IconStack2,
   IconTypography,
+  IconCircle,
   type IconProps,
 } from "@tabler/icons-react";
 
-import { getBool, getId, getStr, isTextType } from "../../lib/fabric-util.js";
-import { getObjectGroupId } from "./dataGroups.js";
 import type { EditorApi } from "./useEditor.js";
-import { BRAND_COLORS, DESIGN_SLOTS, PALETTE } from "./palette.js";
+import { ColorPalettePanel } from "./ColorPalettePanel.js";
+import { filterIcons, ICON_CATEGORIES, type IconCategory } from "./icon-catalog.js";
+import { TEXT_STYLE_PRESETS } from "./palette.js";
 import { pickImageDataUrl } from "./pickImage.js";
+import { pushRecentSticker, readRecentStickers } from "./stickerRecent.js";
 
-type Sub = "add" | "upload" | "bg" | "data" | "layers";
+type Sub = "add" | "icon" | "upload" | "bg";
 
 const LEFT_TAB_KEY = "genposter.editor.leftTab";
-const VALID: Sub[] = ["add", "upload", "bg", "data", "layers"];
+const VALID: Sub[] = ["add", "icon", "upload", "bg"];
 
 function readLeftTab(): Sub {
   try {
     const v = localStorage.getItem(LEFT_TAB_KEY);
+    if (v === "data" || v === "layers") return "add";
     if (v && (VALID as string[]).includes(v)) return v as Sub;
   } catch {
     /* ignore */
@@ -71,6 +66,10 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
   const [bgColor, setBgColor] = useState("#ffffff");
   void ed.tick;
 
+  useEffect(() => {
+    setBgColor(ed.getPageBackgroundColor());
+  }, [ed, ed.tick]);
+
   return (
     <aside className="panel left">
       <Tabs
@@ -93,6 +92,11 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
               <IconPlus size={18} />
             </Tabs.Tab>
           </Tooltip>
+          <Tooltip label="Icon" withArrow>
+            <Tabs.Tab value="icon" px="xs">
+              <IconMoodSmile size={18} />
+            </Tabs.Tab>
+          </Tooltip>
           <Tooltip label="Ảnh" withArrow>
             <Tabs.Tab value="upload" px="xs">
               <IconPhoto size={18} />
@@ -101,16 +105,6 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
           <Tooltip label="Nền" withArrow>
             <Tabs.Tab value="bg" px="xs">
               <IconColorSwatch size={18} />
-            </Tabs.Tab>
-          </Tooltip>
-          <Tooltip label="Dữ liệu" withArrow>
-            <Tabs.Tab value="data" px="xs">
-              <IconDatabase size={18} />
-            </Tabs.Tab>
-          </Tooltip>
-          <Tooltip label="Lớp" withArrow>
-            <Tabs.Tab value="layers" px="xs">
-              <IconStack2 size={18} />
             </Tabs.Tab>
           </Tooltip>
         </Tabs.List>
@@ -136,64 +130,46 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
                 {it.label}
               </Button>
             ))}
+            <Text size="xs" fw={600} c="dimmed" mt="sm">
+              Kiểu chữ dựng sẵn
+            </Text>
+            {TEXT_STYLE_PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                variant="default"
+                fullWidth
+                h={44}
+                px="sm"
+                justify="flex-start"
+                onClick={() => ed.addTextPreset(preset)}
+                styles={{
+                  inner: { justifyContent: "flex-start", gap: 10 },
+                  label: { fontSize: 13, fontWeight: 600 },
+                }}
+              >
+                {preset.label}
+              </Button>
+            ))}
           </Stack>
         </Tabs.Panel>
 
+        <Tabs.Panel value="icon">
+          <IconPickerPanel ed={ed} />
+        </Tabs.Panel>
+
         <Tabs.Panel value="upload">
-          <Stack gap="sm">
-            <Button
-              leftSection={<IconPhoto size={18} />}
-              onClick={async () => {
-                const url = await pickImageDataUrl();
-                if (url) await ed.addImageDataUrl(url);
-              }}
-            >
-              Tải ảnh lên canvas
-            </Button>
-            <Text c="dimmed" size="xs">
-              Ảnh tĩnh dùng cho trang trí. Ảnh thay theo dữ liệu hãy dùng “Ô ảnh”
-              ở tab Thêm rồi gán slot trong tab Dữ liệu.
-            </Text>
-          </Stack>
+          <UploadPanel ed={ed} />
         </Tabs.Panel>
 
         <Tabs.Panel value="bg">
           <Stack gap="sm">
-            <Text size="xs" fw={600} c="dimmed">
-              Màu Riviu
-            </Text>
-            <Group gap="xs">
-              {BRAND_COLORS.map((c) => (
-                <Tooltip key={c.value} label={c.label} withArrow>
-                  <ActionIcon
-                    variant="default"
-                    size="lg"
-                    aria-label={c.label}
-                    onClick={() => {
-                      setBgColor(c.value);
-                      ed.setBackgroundColor(c.value);
-                    }}
-                    style={{
-                      background: c.value,
-                      border:
-                        c.value.toLowerCase() === "#ffffff"
-                          ? "1px solid var(--mantine-color-gray-4)"
-                          : undefined,
-                    }}
-                  />
-                </Tooltip>
-              ))}
-            </Group>
-            <ColorInput
-              label="Màu nền trang"
+            <ColorPalettePanel
+              title="Màu nền trang"
               value={bgColor}
               onChange={(c) => {
                 setBgColor(c);
                 ed.setBackgroundColor(c);
               }}
-              swatches={PALETTE}
-              format="hex"
-              swatchesPerRow={8}
             />
             <Button
               variant="light"
@@ -214,178 +190,106 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
             </Button>
           </Stack>
         </Tabs.Panel>
-
-        <Tabs.Panel value="data">
-          <DataFields ed={ed} />
-        </Tabs.Panel>
-
-        <Tabs.Panel value="layers">
-          <Layers ed={ed} />
-        </Tabs.Panel>
       </Tabs>
     </aside>
   );
 }
 
-function DataFields({ ed }: { ed: EditorApi }) {
-  const obj = ed.getActive();
-  if (!obj) {
-    return (
-      <div className="empty-hint">Chọn một đối tượng để gán trường dữ liệu.</div>
-    );
-  }
-  const curBind = getStr(obj, "gpBind") ?? "";
-  const curLabel = getStr(obj, "gpLabel") ?? "";
-  const groupId = getObjectGroupId(obj);
-  const group = groupId ? ed.getDataGroups().find((g) => g.id === groupId) : undefined;
-  const text = isTextType(obj);
+function IconPickerPanel({ ed }: { ed: EditorApi }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<IconCategory | "">("");
+
+  const results = useMemo(
+    () => filterIcons(query, category || undefined),
+    [query, category],
+  );
 
   return (
     <Stack gap="sm">
-      <Text fw={600} size="sm">
-        Gán trường cho đối tượng
-      </Text>
-      <Badge color={curBind ? "riviu" : "gray"} variant="light" size="lg">
-        {curBind ? curLabel || curBind : "Chưa gán"}
-      </Badge>
-      {group && (
-        <Badge color="blue" variant="light" size="sm">
-          Nhóm: {group.label}
-        </Badge>
-      )}
-      <SimpleGrid cols={2} spacing="xs">
-        {DESIGN_SLOTS.filter((s) =>
-          text ? s.kind === "text" : s.kind === "photo",
-        ).map((s) => (
-          <Button
-            key={s.bind}
-            variant="default"
-            size="xs"
-            onClick={() => {
-              if (text) ed.updateActive({ text: `[${s.label}]` });
-              ed.setGpBind(obj, s.bind, s.label);
-            }}
-          >
-            {s.label}
-          </Button>
-        ))}
-      </SimpleGrid>
-      <Button
-        variant="subtle"
-        color="gray"
+      <TextInput
         size="xs"
-        onClick={() => ed.setGpBind(obj, "", "")}
-      >
-        Bỏ gán
-      </Button>
-      {group && (
-        <Button
-          variant="light"
-          size="xs"
-          color="gray"
-          onClick={() => ed.removeFromDataGroup(obj)}
-        >
-          Tách khỏi nhóm «{group.label}»
-        </Button>
+        placeholder="Tìm icon…"
+        leftSection={<IconSearch size={14} />}
+        value={query}
+        onChange={(e) => setQuery(e.currentTarget.value)}
+      />
+      <Select
+        size="xs"
+        placeholder="Tất cả danh mục"
+        clearable
+        value={category || null}
+        onChange={(v) => setCategory((v as IconCategory | null) ?? "")}
+        data={ICON_CATEGORIES.map((c) => ({ value: c, label: c }))}
+      />
+      {results.length === 0 ? (
+        <Text size="xs" c="dimmed">
+          Không tìm thấy icon phù hợp.
+        </Text>
+      ) : (
+        <Group gap="xs">
+          {results.map((entry) => (
+            <Tooltip key={entry.id} label={entry.label} withArrow openDelay={300}>
+              <UnstyledButton
+                className="icon-grid-btn"
+                w={44}
+                onClick={() => void ed.addIconFromSvg(entry.svg, entry.label)}
+                // Trusted, hardcoded catalog SVG (see icon-catalog.ts) — not user input.
+                dangerouslySetInnerHTML={{ __html: entry.svg }}
+              />
+            </Tooltip>
+          ))}
+        </Group>
       )}
-      <Text c="dimmed" size="xs">
-        Gán slot gợi ý cho từng phần tử. Ở tab Tạo ảnh, object trong cùng nhóm dữ liệu
-        sẽ nhận thông tin của một quán/item.
-      </Text>
     </Stack>
   );
 }
 
-function Layers({ ed }: { ed: EditorApi }) {
-  const objs = [...ed.getObjects()].reverse();
-  const active = ed.getActive();
-  if (!objs.length) {
-    return <div className="empty-hint">Chưa có đối tượng nào.</div>;
+function UploadPanel({ ed }: { ed: EditorApi }) {
+  const [recent, setRecent] = useState<string[]>(() => readRecentStickers());
+
+  async function uploadSticker() {
+    const url = await pickImageDataUrl();
+    if (!url) return;
+    setRecent(pushRecentSticker(url));
+    await ed.addImageDataUrl(url);
   }
+
   return (
-    <Stack gap={6}>
-      <Text fw={600} size="sm">
-        Lớp ({objs.length})
-      </Text>
-      <ScrollArea.Autosize mah="calc(100vh - 200px)">
-        <Stack gap={2}>
-          {objs.map((o) => {
-            const id = getId(o);
-            const label = getStr(o, "gpLabel") || (o.type ?? "obj");
-            const dg = getStr(o, "gpDataGroup");
-            const locked = getBool(o, "gpLocked");
-            const isActive = active === o;
-            return (
-              <Group
-                key={id}
-                gap={4}
-                wrap="nowrap"
-                px="xs"
-                py={4}
-                onClick={() => ed.selectObject(o)}
-                style={{
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  background: isActive
-                    ? "var(--mantine-color-riviu-0)"
-                    : undefined,
-                }}
+    <Stack gap="sm">
+      <Button leftSection={<IconPhoto size={18} />} onClick={() => void uploadSticker()}>
+        Sticker PNG
+      </Button>
+      <Button
+        variant="light"
+        leftSection={<IconPhoto size={18} />}
+        onClick={async () => {
+          const url = await pickImageDataUrl();
+          if (url) await ed.addImageDataUrl(url);
+        }}
+      >
+        Tải ảnh lên canvas
+      </Button>
+      {recent.length > 0 && (
+        <>
+          <Text size="xs" fw={600} c="dimmed">
+            Sticker gần đây
+          </Text>
+          <Group gap="xs">
+            {recent.map((url) => (
+              <UnstyledButton
+                key={url.slice(0, 48)}
+                className="sticker-thumb"
+                onClick={() => void ed.addImageDataUrl(url)}
               >
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    ed.toggleVisible(o);
-                  }}
-                >
-                  {o.visible ? <IconEye size={16} /> : <IconEyeOff size={16} />}
-                </ActionIcon>
-                <Text
-                  size="sm"
-                  truncate
-                  c={isActive ? "riviu.7" : undefined}
-                  style={{ flex: 1 }}
-                >
-                  {dg ? `[${dg}] ` : ""}
-                  {label}
-                </Text>
-                {locked && (
-                  <IconLock
-                    size={14}
-                    color="var(--mantine-color-dimmed)"
-                  />
-                )}
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    ed.selectObject(o);
-                    ed.order("forward");
-                  }}
-                >
-                  <IconChevronUp size={16} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    ed.selectObject(o);
-                    ed.order("backward");
-                  }}
-                >
-                  <IconChevronDown size={16} />
-                </ActionIcon>
-              </Group>
-            );
-          })}
-        </Stack>
-      </ScrollArea.Autosize>
+                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              </UnstyledButton>
+            ))}
+          </Group>
+        </>
+      )}
+      <Text c="dimmed" size="xs">
+        Sticker PNG dùng cho trang trí. Ảnh thay theo dữ liệu: thêm “Ô ảnh” ở tab Thêm.
+      </Text>
     </Stack>
   );
 }

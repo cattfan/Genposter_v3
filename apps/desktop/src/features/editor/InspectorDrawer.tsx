@@ -22,15 +22,15 @@ export function InspectorDrawer({
 
   void ed.tick;
   const obj = ed.getActive();
-  const title = obj?.type ?? "Đối tượng";
+  const title = obj ? (TYPE_LABELS[obj.type?.toLowerCase() ?? ""] ?? "Đối tượng") : "Đối tượng";
 
   return (
     <aside className="panel inspector-dock">
       <Group justify="space-between" mb="sm" wrap="nowrap">
-        <Text fw={600} size="sm" tt="capitalize">
+        <Text fw={600} size="sm">
           {title}
         </Text>
-        <ActionIcon variant="subtle" color="gray" onClick={onClose} aria-label="Đóng inspector">
+        <ActionIcon variant="subtle" color="gray" onClick={onClose} aria-label="Đóng bảng thuộc tính">
           <IconX size={18} />
         </ActionIcon>
       </Group>
@@ -38,3 +38,15 @@ export function InspectorDrawer({
     </aside>
   );
 }
+
+const TYPE_LABELS: Record<string, string> = {
+  textbox: "Văn bản",
+  "i-text": "Văn bản",
+  text: "Văn bản",
+  image: "Ảnh",
+  rect: "Khối chữ nhật",
+  circle: "Hình tròn",
+  line: "Đường kẻ",
+  group: "Nhóm",
+  activeselection: "Nhiều đối tượng",
+};

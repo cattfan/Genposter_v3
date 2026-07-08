@@ -36,7 +36,7 @@ export function TextEffectsPopover({
   return (
     <Popover width={280} position="bottom" withArrow withinPortal shadow="md">
       <Popover.Target>
-        <UnstyledButton className="ctx-bar-pill ctx-bar-pill--effects" aria-label="Hiệu ứng">
+        <UnstyledButton className="ctx-bar-pill" aria-label="Hiệu ứng">
           <IconWand size={16} stroke={1.5} />
           <Text size="xs" fw={600}>
             Hiệu ứng

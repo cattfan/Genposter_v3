@@ -25,7 +25,9 @@ export function genId(prefix: string): string {
 }
 
 export function emptyScene(): FabricScene {
-  return { version: "6.0.0", objects: [] };
+  // Explicit white background: thumbnails and generated JPEGs render
+  // transparent as black, so scenes must always carry a background.
+  return { version: "6.0.0", background: "#ffffff", objects: [] };
 }
 
 export function emptyPage(name?: string): TemplatePage {
