@@ -21,10 +21,16 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": {
+        "default-src": "'self' asset: http://asset.localhost https://asset.localhost",
+        "connect-src": "'self' ipc: http://ipc.localhost http: https: ws://127.0.0.1:1420",
+        "img-src": "'self' asset: http://asset.localhost https://asset.localhost blob: data:",
+        "font-src": "'self' asset: http://asset.localhost https://asset.localhost https://fonts.gstatic.com data:",
+        "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com"
+      },
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["$HOME/**"]
       }
     }
   },

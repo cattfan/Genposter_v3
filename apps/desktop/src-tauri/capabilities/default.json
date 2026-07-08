@@ -16,13 +16,11 @@
     "fs:allow-read-dir",
     "fs:allow-mkdir",
     "fs:allow-exists",
+    "fs:allow-rename",
+    "fs:allow-remove",
     {
       "identifier": "fs:scope",
-      "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "**" }
-      ]
+      "allow": [{ "path": "$HOME/**" }]
     }
   ]
 }
