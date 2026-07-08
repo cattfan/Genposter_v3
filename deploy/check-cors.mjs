@@ -1,8 +1,10 @@
 /** Check CORS headers NocoDB returns for cross-origin app usage. */
-const NC = process.env.NC_URL ?? "http://180.93.114.89:8080";
-const TOKEN = process.env.NC_APP_TOKEN ?? "ZWxcgEOibkb6dYiTdHoe9iRk4iViV9K48d8T2h4V";
+const NC = process.env.NC_URL ?? "http://192.168.110.101:8080";
+const TOKEN = process.env.NC_APP_TOKEN ?? "";
+const BASE = process.env.NC_BASE_ID ?? "pcq7mr8crku2d9o";
+if (!TOKEN) throw new Error("Set NC_APP_TOKEN (see deploy/CREDENTIALS.local.md)");
 
-const r = await fetch(`${NC}/api/v2/meta/bases/prv2zznqur45kz0/tables`, {
+const r = await fetch(`${NC}/api/v2/meta/bases/${BASE}/tables`, {
   headers: { "xc-token": TOKEN, Origin: "http://tauri.localhost" },
 });
 console.log("status:", r.status);
@@ -14,7 +16,7 @@ for (const k of [
   console.log(`${k}:`, r.headers.get(k));
 }
 
-const opt = await fetch(`${NC}/api/v2/meta/bases/prv2zznqur45kz0/tables`, {
+const opt = await fetch(`${NC}/api/v2/meta/bases/${BASE}/tables`, {
   method: "OPTIONS",
   headers: {
     Origin: "http://tauri.localhost",

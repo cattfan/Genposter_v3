@@ -13,8 +13,13 @@ Hai môi trường đang chạy:
 | Base | "Riviu Đà Lạt" | "Genposter Data" |
 
 Tài khoản + mật khẩu: xem `deploy/CREDENTIALS.local.md` (KHÔNG commit file này).
-Lưu ý: server LAN không vào được từ ngoài công ty — muốn truy cập từ xa thì
-mở port trên router hoặc dùng VPN (Tailscale).
+Lưu ý: server LAN mặc định chỉ vào được trong công ty. Muốn truy cập từ xa,
+cách khuyên dùng là **Tailscale** (VPN riêng, không cần mở port router, không
+lộ NocoDB ra internet công khai) — server đã join tailnet `genposter-lan` →
+`100.74.131.110`, xem **`deploy/TAILSCALE.md`**. Cách cũ — port-forward router,
+public thẳng ra internet — vẫn còn nhưng kém an toàn hơn: xem
+**`deploy/PORT-FORWARD.md`** (public IP hiện tại: `1.52.185.91:8080` sau khi
+cấu hình router).
 
 ## Tài khoản & phân quyền
 
@@ -24,8 +29,87 @@ mở port trên router hoặc dùng VPN (Tailscale).
 | `data@genposter.vn` | Editor | Thêm/sửa/xoá dòng, upload ảnh. KHÔNG sửa được cấu trúc bảng |
 | `app@genposter.vn` | Viewer + API token | Chỉ đọc — token dùng cho app Genposter sync |
 
-Đăng ký tự do đã khoá (invite-only). Thêm nhân viên mới: đăng nhập admin →
-Base "Genposter Data" → Members → Invite (role **Editor**), gửi link mời cho họ.
+Đăng ký tự do đã khoá (invite-only).
+
+### Cách 1 — UI NocoDB (không cần gửi email)
+
+**Quan trọng:** tab **Riviu → Members** chỉ có **Remove member** / **Copy User ID** — **KHÔNG có Copy Invite URL**.
+Toast *Invitation sent successfully* **không có nghĩa** email đã gửi (server chưa cấu h SMTP).
+
+#### A — Nhân viên **chưa có** tài khoản (email mới)
+
+1. Avatar góc **dưới trái** → **Admin Panel** → **Users**
+2. **+ Invite User** → nhập email + role
+3. **⋮** bên cạnh user → **Copy Invite URL** → gửi Zalo
+4. Nhân viên mở link → **tự đặt mật khẩu** → đăng nhập
+
+#### B — Nhân viên **đã có** tài khoản (vd. `cattfan239@gmail.com`)
+
+Workspace **Members → Invite** chỉ thêm vào workspace — **không tạo pass**, **không có link mời**.
+
+1. **Admin Panel → Users** → **⋮** → **Copy password reset URL** → gửi Zalo
+2. Nhân viên mở link → đặt mật khẩu mới → **Sign In**
+
+#### C — Gán quyền base (bắt buộc, nếu không sẽ thấy workspace trống)
+
+Sau A hoặc B, vào base **Riviu Đà Lạt** → **Share / Members** → thêm user → role **Editor**.
+
+**Lưu ý UI:** NocoDB **không có ô admin gõ mật khẩu hộ** — nhân viên tự tạo pass qua invite link hoặc reset link.
+Muốn admin đặt pass sẵn → dùng script bên dưới.
+
+### Cách 2 — Script (admin đặt mật khẩu sẵn)
+
+```powershell
+$env:GP_ADMIN_PW="<mật khẩu admin, xem CREDENTIALS.local.md>"
+node deploy/create-team-user.mjs ten@riviu.vn MatKhau2026! editor
+```
+
+Script tạo acc + **đặt mật khẩu** + gán Editor + accept invite. In ra URL/email/password
+— admin gửi cho nhân viên qua Zalo/Telegram. **Không dùng email mời NocoDB.**
+
+Reset acc lỗi: thêm `--reset` ở cuối.
+
+### Email mời → link sai (app.nocodb.com)
+
+Server **self-hosted** chưa cấu hình SMTP (`NC_SMTP_*`). Email mời/verify do NocoDB gửi
+có thể trỏ sang **[app.nocodb.com](https://app.nocodb.com/signin)** — đó là **cloud**,
+**không phải** server Riviu (`192.168.110.101`).
+
+**Đừng bấm link email.** Cách đúng:
+
+1. Mở trực tiếp: **http://192.168.110.101:8080/signin/**
+2. Dùng `deploy/create-team-user.mjs` (tạo acc + mật khẩu một lần)
+3. Sau này muốn email đúng link → cấu hình SMTP + `NC_PUBLIC_URL=http://192.168.110.101:8080`
+   (theo [NocoDB env docs](https://nocodb.com/docs/self-hosting/environment-variables))
+
+Trang **SIGN IN** (email + password) là bình thường — không phải thiếu mật khẩu hệ thống.
+
+### Gói trả phí (Scale / Upgrade) — có unlock được không?
+
+Server đang chạy **Community Edition (CE)** — log: `No license key found — running in CE mode`.
+Nút **Scale / Upgrade / FREE PLAN** trên UI là upsell của NocoDB Cloud — **không liên quan**
+tới server self-hosted của mình.
+
+| Cần cho đội data Riviu | CE (miễn phí, đang dùng) |
+|---|---|
+| Nhập/sửa data, upload ảnh | ✅ |
+| 10 bảng, unlimited rows | ✅ |
+| Grid / Form / Gallery / Kanban… | ✅ |
+| Phân quyền Editor/Viewer | ✅ |
+| API sync cho app Genposter | ✅ |
+
+| Tính năng Enterprise (trả phí) | CE |
+|---|---|
+| SSO / SCIM | ❌ cần license |
+| Audit log workspace | ❌ |
+| Gantt / Timeline view | ❌ |
+| Workflows tự động | ❌ |
+| White-label | ❌ |
+
+**Không thể “unlock crack”** — cần mua license tại
+[nocodb.com/docs/self-hosting/purchase-license](https://nocodb.com/docs/self-hosting/purchase-license)
+(~$19/editor/tháng Business) rồi nhập key vào Admin Panel hoặc `NC_LICENSE_KEY`.
+Với nhu cầu nhập liệu + ảnh Đà Lạt, **CE đã đủ**, không cần trả phí.
 
 Lịch sử chỉnh sửa: mở record → tab bên phải hiển thị ai sửa ô nào, thêm/xoá
 ảnh nào, lúc nào.
@@ -105,7 +189,11 @@ Khôi phục ảnh: copy ngược `/opt/backups/nc_data_mirror/` vào volume
 | `setup-nocodb.mjs` | máy local | Tạo base/bảng/tài khoản (chạy lại an toàn) |
 | `import-to-nocodb.mjs` | máy local | Đổ Excel + ảnh lên server (resumable, `--sheet X --limit N`) |
 | `verify-import.mjs` | máy local | Đối chiếu số dòng DB vs Excel + spot-check ảnh |
-| `lock-signup.mjs` | máy local | Khoá signup + dọn tài khoản lạ |
+| `create-team-user.mjs` | máy local | **Tạo acc + mật khẩu + Editor** (khuyên dùng) |
+| `fix-invite.mjs` | máy local | Sửa acc bị mời lỗi |
+| `set-user-password.mjs` | máy local | Đổi mật khẩu acc đã có |
+| `add-base-member.mjs` | máy local | Chỉ thêm quyền base |
+| `fix-site-url.sh` | server | Sửa NC_PUBLIC_URL |
 | `check-server.mjs`, `check-cors.mjs` | máy local | Health check nhanh |
 
 Cần mật khẩu trong env trước khi chạy script local: đọc
