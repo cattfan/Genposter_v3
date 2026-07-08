@@ -9,6 +9,7 @@ export interface RecipeSummary {
   name: string;
   templateId: string;
   sheet: string;
+  bindingCount: number;
 }
 
 /** YAML on-disk shape (snake_case, human friendly). */
@@ -91,6 +92,7 @@ export async function listRecipes(): Promise<RecipeSummary[]> {
         name: y?.name ?? id,
         templateId: y?.template_id ?? "",
         sheet: y?.data?.sheet ?? "",
+        bindingCount: (y?.bindings ?? []).filter((b) => b.bind).length,
       });
     } catch {
       // skip invalid

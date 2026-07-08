@@ -14,6 +14,16 @@ export function aiKey(elementId: string): string {
   return `__ai__${elementId}`;
 }
 
+/** True when a binding token can only resolve with a data row assigned. */
+export function bindNeedsRow(bind: string): boolean {
+  return (
+    bind === "n" ||
+    bind.startsWith("item.") ||
+    bind.startsWith("photo:item:") ||
+    bind.startsWith("ai:")
+  );
+}
+
 /** Resolve a text binding token to a string. */
 export function resolveText(bind: string, ctx: BindContext, elementId?: string): string {
   if (!bind) return "";

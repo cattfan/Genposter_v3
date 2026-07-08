@@ -1,7 +1,7 @@
 import type { GeneratedSet, Recipe } from "@genposter/schema";
 
 import { aiKey, fillTokens } from "./bind.js";
-import type { KhuonPlan } from "./khuon-plan.js";
+import { PAGE_SOLO_GROUP, type KhuonPlan } from "./khuon-plan.js";
 import { settings } from "./settings.js";
 
 /**
@@ -24,6 +24,8 @@ export async function applyAiBindings(
   const membersByPageGroup = new Map<string, string[]>();
   for (const p of plan.pages) {
     for (const g of p.groups) membersByPageGroup.set(`${p.pageId}::${g.id}`, g.memberIds);
+    if (p.soloIds.length)
+      membersByPageGroup.set(`${p.pageId}::${PAGE_SOLO_GROUP}`, p.soloIds);
   }
 
   for (const set of sets) {
@@ -65,6 +67,9 @@ interface CompleteOpts {
   temperature?: number;
 }
 
+/** A stuck connection must not hang sync/caption generation forever. */
+const AI_TIMEOUT_MS = 30_000;
+
 async function complete(
   cfg: AiCfg,
   prompt: string,
@@ -89,6 +94,7 @@ async function complete(
       ],
       temperature: opts.temperature ?? 0.7,
     }),
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

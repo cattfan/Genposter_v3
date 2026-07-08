@@ -1,16 +1,25 @@
+import { useEffect, useRef } from "react";
 import type { DataGroupDef } from "@genposter/schema";
 import {
   Accordion,
   ActionIcon,
+  Badge,
+  Box,
   Group,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
+  ThemeIcon,
   Tooltip,
 } from "@mantine/core";
-import { IconClipboard, IconCopy } from "@tabler/icons-react";
+import {
+  IconClipboard,
+  IconCopy,
+  IconPhoto,
+  IconSquare,
+  IconTypography,
+} from "@tabler/icons-react";
 
 import {
   copyBinding,
@@ -25,7 +34,14 @@ import type { ElementInfo } from "./elements.js";
 import { bindKind, buildBindOptions } from "./options.js";
 import type { Draft } from "./preset-utils.js";
 
-function BindingRow({
+function elementIcon(el: ElementInfo) {
+  if (el.isImage) return IconPhoto;
+  const t = el.type.toLowerCase();
+  if (t.includes("text")) return IconTypography;
+  return IconSquare;
+}
+
+function BindingCard({
   el,
   bind,
   canonFields,
@@ -33,6 +49,7 @@ function BindingRow({
   onCopy,
   onPaste,
   highlight,
+  isActive,
   onHover,
   onActivate,
 }: {
@@ -43,82 +60,93 @@ function BindingRow({
   onCopy: () => void;
   onPaste: () => void;
   highlight: "hover" | "active" | null;
+  isActive: boolean;
   onHover: (id: string | null) => void;
   onActivate: (id: string) => void;
 }) {
+  const selectRef = useRef<HTMLInputElement>(null);
   const kind = bindKind(bind);
   const selectVal = kind === "static" ? "static:" : kind === "ai" ? "ai:" : bind;
   const options = buildBindOptions(canonFields, el.isImage);
+  const Icon = elementIcon(el);
+  const unbound = !bind;
+
+  useEffect(() => {
+    if (!isActive) return;
+    selectRef.current?.focus();
+  }, [isActive]);
 
   return (
-    <Table.Tr
-      key={el.id}
+    <Box
+      className={`binding-card${unbound ? " binding-card--unbound" : ""}${highlight ? ` binding-card--${highlight}` : ""}`}
       data-el-row={el.id}
-      bg={
-        highlight === "active"
-          ? "var(--mantine-color-orange-0)"
-          : highlight === "hover"
-            ? "var(--mantine-color-blue-0)"
-            : undefined
-      }
       onMouseEnter={() => onHover(el.id)}
       onMouseLeave={() => onHover(null)}
       onClick={() => onActivate(el.id)}
     >
-      <Table.Td>
-        <Text size="sm" fw={600} truncate>
-          {el.label}
-        </Text>
-        <Text size="xs" c="dimmed" truncate>
-          {el.type} · {el.id}
-        </Text>
-      </Table.Td>
-      <Table.Td>
+      <Group justify="space-between" wrap="nowrap" mb={8}>
+        <Group gap={8} wrap="nowrap" miw={0}>
+          <ThemeIcon size="md" variant="light" color={el.isImage ? "blue" : "gray"} radius="md">
+            <Icon size={16} stroke={1.5} />
+          </ThemeIcon>
+          <Stack gap={0} miw={0}>
+            <Group gap={6} wrap="nowrap">
+              <Text size="sm" fw={600} truncate>
+                {el.label}
+              </Text>
+              {unbound && (
+                <Badge size="xs" variant="light" color="orange">
+                  Chưa gán
+                </Badge>
+              )}
+            </Group>
+            <Text size="xs" c="dimmed" truncate>
+              {el.isImage ? "Ảnh" : "Văn bản / khác"}
+            </Text>
+          </Stack>
+        </Group>
+        <Group gap={2} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+          <Tooltip label="Sao chép gán" withArrow>
+            <ActionIcon variant="subtle" size="sm" onClick={onCopy}>
+              <IconCopy size={14} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Dán gán" withArrow>
+            <ActionIcon variant="subtle" size="sm" disabled={!hasBindingClipboard()} onClick={onPaste}>
+              <IconClipboard size={14} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      </Group>
+      <Stack gap={6} onClick={(e) => e.stopPropagation()}>
         <Select
+          ref={selectRef}
           size="xs"
+          label="Nguồn dữ liệu"
           allowDeselect={false}
           comboboxProps={{ withinPortal: true }}
           value={selectVal}
           data={options}
           onChange={(v) => onBind(v ?? "")}
         />
-      </Table.Td>
-      <Table.Td>
-        {kind !== "plain" ? (
+        {kind !== "plain" && (
           <TextInput
             size="xs"
+            label={kind === "ai" ? "Prompt AI" : "Văn bản cố định"}
             value={bind.slice(kind === "static" ? 7 : 3)}
-            placeholder={kind === "ai" ? "Prompt…" : "Văn bản…"}
+            placeholder={kind === "ai" ? "Mô tả caption…" : "Nhập nội dung…"}
+            error={
+              (kind === "static" && bind.length <= 7) || (kind === "ai" && bind.length <= 3)
+                ? "Bắt buộc nhập nội dung"
+                : undefined
+            }
             onChange={(e) =>
               onBind((kind === "static" ? "static:" : "ai:") + e.currentTarget.value)
             }
           />
-        ) : (
-          <Text c="dimmed" size="xs">
-            —
-          </Text>
         )}
-      </Table.Td>
-      <Table.Td>
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label="Sao chép binding" withArrow>
-            <ActionIcon variant="subtle" size="sm" onClick={onCopy}>
-              <IconCopy size={14} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Dán binding" withArrow>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              disabled={!hasBindingClipboard()}
-              onClick={onPaste}
-            >
-              <IconClipboard size={14} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      </Table.Td>
-    </Table.Tr>
+      </Stack>
+    </Box>
   );
 }
 
@@ -153,38 +181,27 @@ export function ProduceBindingsPanel({
   const setBind = (id: string, bind: string) =>
     setD({ bindings: { ...draft.bindings, [id]: bind } });
 
-  const bindingTable = (rows: ElementInfo[]) => (
-    <Table striped highlightOnHover verticalSpacing="xs" layout="fixed">
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th w="26%">Đối tượng</Table.Th>
-          <Table.Th w="30%">Nguồn dữ liệu</Table.Th>
-          <Table.Th w="30%">Giá trị / prompt</Table.Th>
-          <Table.Th w="14%">Copy</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {rows.map((el) => (
-          <BindingRow
-            key={el.id}
-            el={el}
-            bind={draft.bindings[el.id] ?? ""}
-            canonFields={canonFields}
-            onBind={(b) => setBind(el.id, b)}
-            onCopy={() => copyBinding(draft.bindings[el.id] ?? "")}
-            onPaste={() => {
-              const b = pasteBinding();
-              if (b !== null) setBind(el.id, b);
-            }}
-            highlight={
-              activeId === el.id ? "active" : hoverId === el.id ? "hover" : null
-            }
-            onHover={onHover}
-            onActivate={onActivate}
-          />
-        ))}
-      </Table.Tbody>
-    </Table>
+  const bindingList = (rows: ElementInfo[]) => (
+    <Stack gap="xs">
+      {rows.map((el) => (
+        <BindingCard
+          key={el.id}
+          el={el}
+          bind={draft.bindings[el.id] ?? ""}
+          canonFields={canonFields}
+          onBind={(b) => setBind(el.id, b)}
+          onCopy={() => copyBinding(draft.bindings[el.id] ?? "")}
+          onPaste={() => {
+            const b = pasteBinding();
+            if (b !== null) setBind(el.id, b);
+          }}
+          highlight={activeId === el.id ? "active" : hoverId === el.id ? "hover" : null}
+          isActive={activeId === el.id}
+          onHover={onHover}
+          onActivate={onActivate}
+        />
+      ))}
+    </Stack>
   );
 
   return (
@@ -235,8 +252,8 @@ export function ProduceBindingsPanel({
                   </Accordion.Control>
                   <Accordion.Panel>
                     <Stack gap="sm">
-                      <Group gap="xs">
-                        <Tooltip label="Sao chép binding nhóm" withArrow>
+                      <Group gap="xs" wrap="nowrap">
+                        <Tooltip label="Sao chép gán nhóm" withArrow>
                           <ActionIcon
                             variant="light"
                             onClick={() =>
@@ -246,7 +263,7 @@ export function ProduceBindingsPanel({
                             <IconCopy size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <Tooltip label="Dán binding nhóm" withArrow>
+                        <Tooltip label="Dán gán nhóm" withArrow>
                           <ActionIcon
                             variant="light"
                             disabled={!hasGroupBindingClipboard()}
@@ -262,11 +279,8 @@ export function ProduceBindingsPanel({
                             <IconClipboard size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <Text size="xs" c="dimmed">
-                          Nhóm slot lấy 1 dòng ngẫu nhiên; nhóm lặp lấy nhiều dòng.
-                        </Text>
                       </Group>
-                      {bindingTable(members)}
+                      {bindingList(members)}
                     </Stack>
                   </Accordion.Panel>
                 </Accordion.Item>
@@ -284,7 +298,7 @@ export function ProduceBindingsPanel({
           Không có đối tượng lẻ.
         </Text>
       ) : (
-        bindingTable(solo)
+        bindingList(solo)
       )}
     </Stack>
   );

@@ -32,7 +32,9 @@ export function extractElements(scene: FabricScene | undefined): ElementInfo[] {
       label: (o.gpLabel as string) || type,
       bindHint: (o.gpBind as string) || "",
       dataGroupId: (o.gpDataGroup as string) || "",
-      isImage: type === "image",
+      // Fabric v6 serializes class names ("Image", "Textbox"), older scenes
+      // may carry lowercase — compare case-insensitively.
+      isImage: type.toLowerCase() === "image",
     });
   }
   return out;

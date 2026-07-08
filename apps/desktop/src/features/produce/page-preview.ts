@@ -38,6 +38,9 @@ export async function renderPagePreviews(
       const { dataGroups: _dg, ...json } = scene;
       void _dg;
       await canvas.loadFromJSON(json);
+      if (!canvas.backgroundColor && !canvas.backgroundImage) {
+        canvas.backgroundColor = "#ffffff";
+      }
       canvas.setDimensions({ width: set.width, height: set.height });
       canvas.renderAll();
 

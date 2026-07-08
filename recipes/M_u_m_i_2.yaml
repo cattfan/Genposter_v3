@@ -1,0 +1,26 @@
+name: Mẫu mới (2)
+template_id: M_u_m_i_2
+data:
+  sheet: Quan_an
+photos:
+  per_item: 1
+  per_set: 0
+random_set_count: 5
+bindings: []
+caption:
+  enabled: true
+  prompt: >-
+    Viết caption TikTok tiếng Việt cho một bộ ảnh review du lịch Đà Lạt, gồm 3 phần:
+
+    Phần 1 - Tiêu đề: giật gân, gây tò mò, luôn dưới 90 ký tự để không bị cắt khi hiển thị.
+
+    Phần 2 - Nội dung: giải nghĩa thêm cho tiêu đề, tối đa 300 ký tự, nhồi từ khóa SEO phổ biến liên quan chủ đề.
+
+    Phần 3 - Hashtags: chốt bằng đúng 5 hashtag — 3 bắt buộc #riviudalat #dalat #dalatreview + 2 hashtag tự tạo viết
+    liền không dấu, phổ biến cho du lịch Đà Lạt.
+
+    Ba phần cách nhau một dòng trống. Chỉ trả về caption hoàn chỉnh, không giải thích, không markdown.
+output:
+  dir: output/M_u_m_i_2
+  format: jpg
+  quality: 100

@@ -13,8 +13,16 @@ import type {
 import { resolvePhoto, resolveText, type BindContext } from "./bind.js";
 import { CUSTOM_PROPS } from "./fabric-util.js";
 import { ensureFonts } from "./fonts.js";
-import { fitImageCover, getId, isImageType, isTextType } from "./fabric-util.js";
-import { buildKhuonPlan } from "./khuon-plan.js";
+import {
+  fitImageCover,
+  flattenObjects,
+  getId,
+  getCornerRadius,
+  isGroupObject,
+  isImageType,
+  isTextType,
+} from "./fabric-util.js";
+import { buildKhuonPlan, PAGE_SOLO_GROUP } from "./khuon-plan.js";
 import { groupMemberIdSet } from "./scene-groups.js";
 import { dataUrlToBytes, assetUrl } from "./fsx.js";
 import { makeZip } from "./zip.js";
@@ -53,7 +61,7 @@ async function applyBinding(
     const angle = img.angle ?? 0;
     try {
       await img.setSrc(assetUrl(path), { crossOrigin: "anonymous" });
-      fitImageCover(img, boxW, boxH);
+      fitImageCover(img, boxW, boxH, getCornerRadius(img));
       img.set({ angle });
       img.setPositionByOrigin(center, "center", "center");
       img.setCoords();
@@ -72,7 +80,8 @@ async function applyBinding(
 
 function objectsById(canvas: fabric.StaticCanvas): Map<string, fabric.FabricObject> {
   const m = new Map<string, fabric.FabricObject>();
-  for (const o of canvas.getObjects()) m.set(getId(o), o);
+  // Descend into layout groups so bindings on grouped members still resolve.
+  for (const o of flattenObjects(canvas.getObjects())) m.set(getId(o), o);
   return m;
 }
 
@@ -108,7 +117,7 @@ async function bindRepeatGroup(
   const step = (group.repeat?.rowHeight ?? 110) + (group.repeat?.gap ?? 0);
   const members = membersOf(canvas, group);
   if (!members.length || !rows.length) {
-    for (const obj of members) canvas.remove(obj);
+    for (const obj of members) (obj.group ?? canvas).remove(obj);
     return;
   }
 
@@ -124,7 +133,9 @@ async function bindRepeatGroup(
         n: i + 1,
         setPhotos,
       });
-      canvas.add(clone);
+      // Add beside the original — into its layout group when nested, so
+      // group-local coordinates (like the offset above) stay correct.
+      (obj.group ?? canvas).add(clone);
     }
   }
 
@@ -152,14 +163,23 @@ export async function renderPageCanvas(
   const { dataGroups: _dg, ...canvasJson } = scene;
   void _dg;
   await canvas.loadFromJSON(canvasJson);
+  // Old templates were saved without a background; JPEG renders transparent
+  // as black, so default to white.
+  if (!canvas.backgroundColor && !canvas.backgroundImage) {
+    canvas.backgroundColor = "#ffffff";
+  }
   canvas.setDimensions({ width, height });
 
   const fillByGroup = new Map(gen.groups.map((g) => [g.groupId, g.rows]));
 
-  // Static objects (not part of any data group).
-  for (const obj of canvas.getObjects()) {
-    if (groupIds.has(getId(obj))) continue;
-    await applyBinding(obj, bindForObject(obj, binds), { setPhotos });
+  // Objects outside any data group share the page's solo row (when the plan
+  // reserved one), so item.* / photo:item:* / n bindings still resolve.
+  // Descend into layout groups too — a plain "Nhóm layout" wrapper must not
+  // hide its members from solo binding.
+  const soloRow = fillByGroup.get(PAGE_SOLO_GROUP)?.[0];
+  for (const obj of flattenObjects(canvas.getObjects())) {
+    if (isGroupObject(obj) || groupIds.has(getId(obj))) continue;
+    await applyBinding(obj, bindForObject(obj, binds), { row: soloRow, n: 1, setPhotos });
   }
 
   for (const g of groups) {
@@ -167,7 +187,7 @@ export async function renderPageCanvas(
     if (!rows || !rows.length) {
       // Group with no assigned rows (e.g. repeat maxRows=0): drop its members
       // so design-time placeholders don't leak into the export.
-      for (const obj of membersOf(canvas, g)) canvas.remove(obj);
+      for (const obj of membersOf(canvas, g)) (obj.group ?? canvas).remove(obj);
       continue;
     }
     if (g.mode === "slot") {
@@ -211,16 +231,33 @@ export interface RenderedSet {
   pages: RenderedPage[];
 }
 
+export interface RenderSetError {
+  setIndex: number;
+  pageIndex: number;
+  message: string;
+}
+
+export interface RenderSetsResult {
+  sets: RenderedSet[];
+  /** Sets dropped because one of their pages failed to render. */
+  errors: RenderSetError[];
+}
+
 /**
  * Render every set×page to in-memory images once. The bytes are reused for
  * the zip export so deselecting/exporting never re-renders.
+ *
+ * A page failure drops only that *set* (so every exported carousel is always
+ * complete — no carousel missing a page from the middle) instead of aborting
+ * the whole batch; other sets still render normally. Failures are returned
+ * in `errors` for the caller to report.
  */
 export async function renderSets(
   set: TemplateSet,
   payload: GeneratePayload,
   recipe: Recipe,
   opts: RenderProgress = {},
-): Promise<RenderedSet[]> {
+): Promise<RenderSetsResult> {
   await ensureFonts();
 
   const plan = buildKhuonPlan(set);
@@ -234,37 +271,68 @@ export async function renderSets(
   const total = payload.sets.reduce((sum, s) => sum + s.pages.length, 0);
   let done = 0;
   const out: RenderedSet[] = [];
+  const errors: RenderSetError[] = [];
+  const allUrls: string[] = [];
 
-  for (const gset of payload.sets) {
-    const pages: RenderedPage[] = [];
-    for (let pi = 0; pi < gset.pages.length; pi++) {
-      const gpage = gset.pages[pi]!;
-      const pp = pageById.get(gpage.pageId);
-      if (!pp) continue;
-      const canvas = await renderPageCanvas(
-        set.width,
-        set.height,
-        pp.scene,
-        pp.groups,
-        gpage,
-        gset.setPhotos,
-        binds,
-      );
-      const bytes =
-        ext === "png" ? canvasToPngBytes(canvas) : canvasToJpegBytes(canvas, q);
-      canvas.dispose();
-      // Copy into a plain ArrayBuffer-backed view to satisfy BlobPart typing.
-      const view = new Uint8Array(bytes);
-      const previewUrl = URL.createObjectURL(new Blob([view.buffer], { type: mime }));
-      pages.push({ bytes, previewUrl });
-      done++;
-      opts.onProgress?.(done, total, `bo${gset.setIndex}/anh${pi + 1}`);
-      await new Promise((r) => setTimeout(r, 0));
+  try {
+    for (const gset of payload.sets) {
+      const pages: RenderedPage[] = [];
+      const setUrls: string[] = [];
+      let setFailed = false;
+      for (let pi = 0; pi < gset.pages.length; pi++) {
+        const gpage = gset.pages[pi]!;
+        const pp = pageById.get(gpage.pageId);
+        if (!pp) {
+          done++;
+          continue;
+        }
+        let canvas: fabric.StaticCanvas | null = null;
+        try {
+          canvas = await renderPageCanvas(
+            set.width,
+            set.height,
+            pp.scene,
+            pp.groups,
+            gpage,
+            gset.setPhotos,
+            binds,
+          );
+          const bytes =
+            ext === "png" ? canvasToPngBytes(canvas) : canvasToJpegBytes(canvas, q);
+          // Copy into a plain ArrayBuffer-backed view to satisfy BlobPart typing.
+          const view = new Uint8Array(bytes);
+          const previewUrl = URL.createObjectURL(new Blob([view.buffer], { type: mime }));
+          setUrls.push(previewUrl);
+          allUrls.push(previewUrl);
+          pages.push({ bytes, previewUrl });
+        } catch (e) {
+          setFailed = true;
+          errors.push({
+            setIndex: gset.setIndex,
+            pageIndex: pi,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        } finally {
+          canvas?.dispose();
+        }
+        done++;
+        opts.onProgress?.(done, total, `bo${gset.setIndex}/anh${pi + 1}`);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      if (setFailed) {
+        for (const url of setUrls) URL.revokeObjectURL(url);
+      } else {
+        out.push({ setIndex: gset.setIndex, pages });
+      }
     }
-    out.push({ setIndex: gset.setIndex, pages });
+  } catch (e) {
+    // Something outside the per-page guard above blew up — revoke every URL
+    // already handed out so a hard failure never leaks blobs, then rethrow.
+    for (const url of allUrls) URL.revokeObjectURL(url);
+    throw e;
   }
 
-  return out;
+  return { sets: out, errors };
 }
 
 /** Free the object URLs held by rendered sets. */

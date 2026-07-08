@@ -1,21 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openPath } from "@tauri-apps/plugin-shell";
 import { save } from "@tauri-apps/plugin-dialog";
-import { Alert, Box, Button, Card, Group, Progress, Select, Text, Title } from "@mantine/core";
+import { Alert, Box, Button, Group, Progress, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
   IconArrowLeft,
-  IconDeviceFloppy,
   IconDownload,
   IconFolderOpen,
   IconSparkles,
 } from "@tabler/icons-react";
-import type { TemplateSet } from "@genposter/schema";
+import type { GeneratedSet, TemplateSet } from "@genposter/schema";
 
-import { aiConfigured, generateCaptions, setItemNames } from "../../lib/ai.js";
-import { buildGenerate, countCandidates } from "../../lib/generate.js";
-import { sheetColumns, listSheets, type SheetInfo } from "../../lib/excel.js";
+import { aiConfigured, generateCaptions } from "../../lib/ai.js";
+import { buildGenerate, countCandidates, DataNotSyncedError } from "../../lib/generate.js";
+import type { SheetInfo } from "../../lib/excel.js";
 import { loadMapping } from "../../lib/mapping.js";
 import {
   renderSets,
@@ -40,12 +39,17 @@ import {
 import { ensureDir, writeBytes } from "../../lib/fsx.js";
 import { join, paths } from "../../lib/paths.js";
 import { buildKhuonPlan } from "../../lib/khuon-plan.js";
+import { listCachedSheets, cachedSheetColumns } from "../../lib/sync.js";
+import { lastUpdateStatus, onUpdateStatus } from "../../lib/update-poller.js";
 import { timestampZipName } from "../../lib/zip.js";
+import { ConfirmModal } from "../../components/ConfirmModal.js";
 import { allElements, extractSetPages, type PageElements } from "./elements.js";
 import { renderPagePreviews, type PagePreviewData } from "./page-preview.js";
+import { GeneratedSetsPanel } from "./GeneratedSetsPanel.js";
 import { KhuonEditor } from "./KhuonEditor.js";
 import { ProduceHome } from "./ProduceHome.js";
-import { SetReviewGallery } from "./SetReviewGallery.js";
+import { ProduceStatusBar } from "./ProduceStatusBar.js";
+import { bindingStats, validateBindings } from "./options.js";
 import {
   draftToRecipe,
   emptyDraft,
@@ -58,7 +62,7 @@ import "./produce.css";
 const ok = (message: string) => notifications.show({ message, color: "teal" });
 const fail = (message: string) => notifications.show({ message, color: "red" });
 
-export function ProduceTab() {
+export function ProduceTab({ active = true }: { active?: boolean }) {
   const [sets, setSets] = useState<TemplateSetSummary[]>([]);
   const [recipes, setRecipes] = useState<RecipeSummary[]>([]);
   const [sheets, setSheets] = useState<SheetInfo[]>([]);
@@ -74,17 +78,68 @@ export function ProduceTab() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [stageMsg, setStageMsg] = useState("");
   const [candidateCount, setCandidateCount] = useState(0);
+  // Distinct from "0 rows after filter" — the server cache has never been
+  // synced, so candidateCount is meaningless until the user syncs.
+  const [candidateNotSynced, setCandidateNotSynced] = useState(false);
   const [dataErr, setDataErr] = useState<string | null>(null);
-  const [view, setView] = useState<"home" | "editor" | "review">("home");
+  const [view, setView] = useState<"home" | "editor">("home");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  // Generated output held for review/export.
+  // Generated output held for preview/export (shown under the workspace).
   const [rendered, setRendered] = useState<RenderedSet[] | null>(null);
-  const [captions, setCaptions] = useState<Record<number, string>>({});
+  const [genSets, setGenSets] = useState<GeneratedSet[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [summaries, setSummaries] = useState<Record<number, string[]>>({});
   const [result, setResult] = useState<{ dest: string; count: number } | null>(null);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(100);
+
+  const skipAutoSaveRef = useRef(true);
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
 
   const setD = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const autoSaveRecipe = useCallback(async () => {
+    if (!templateSet || pagesRef.current.length === 0) return;
+    try {
+      const recipe = draftToRecipe(draft, allElements(pagesRef.current));
+      const id = await saveRecipe(recipe);
+      setRecipes(await listRecipes());
+      if (draft.id !== id) setDraft((d) => ({ ...d, id }));
+    } catch (e) {
+      fail(`Lỗi lưu khuôn: ${String(e)}`);
+    }
+  }, [draft, templateSet]);
+
+  useEffect(() => {
+    if (view !== "editor") {
+      skipAutoSaveRef.current = true;
+      return;
+    }
+    if (!templateSet) return;
+    skipAutoSaveRef.current = true;
+    const enable = window.setTimeout(() => {
+      skipAutoSaveRef.current = false;
+    }, 200);
+    return () => window.clearTimeout(enable);
+  }, [view, templateSet?.id]);
+
+  useEffect(() => {
+    if (view !== "editor" || skipAutoSaveRef.current || !templateSet) return;
+    const timer = window.setTimeout(() => void autoSaveRecipe(), 700);
+    return () => window.clearTimeout(timer);
+  }, [draft, view, templateSet, autoSaveRecipe]);
+
+  async function refreshSheets() {
+    try {
+      setSheets(await listCachedSheets());
+      setDataErr(null);
+    } catch (e) {
+      setDataErr(
+        `Chưa có cache dữ liệu. Vào tab Dữ liệu → Cập nhật ngay. (${String(e)})`,
+      );
+    }
+  }
 
   useEffect(() => {
     void (async () => {
@@ -94,20 +149,32 @@ export function ProduceTab() {
       } catch (e) {
         fail(`Không đọc được mẫu/khuôn: ${String(e)}`);
       }
-      try {
-        setSheets(await listSheets());
-        setDataErr(null);
-      } catch (e) {
-        setDataErr(
-          `Không đọc được Excel. Hãy đặt file vào data/database/ và kiểm tra mapping.yaml. (${String(e)})`,
-        );
-      }
+      await refreshSheets();
     })();
+    const onSynced = () => void refreshSheets();
+    window.addEventListener("genposter:data-synced", onSynced);
+    return () => window.removeEventListener("genposter:data-synced", onSynced);
   }, []);
 
+  // Tabs stay mounted, so the mount-time load above runs only once. Re-read
+  // templates/recipes whenever the user switches to this tab to pick up sets
+  // created in the Design tab since then.
+  useEffect(() => {
+    if (!active) return;
+    void (async () => {
+      try {
+        setSets(await listTemplateSets());
+        setRecipes(await listRecipes());
+      } catch {
+        // Keep the current lists; the mount-time load already reported errors.
+      }
+    })();
+  }, [active]);
+
   const rowsNeededPerSet = useMemo(
-    () => (templateSet ? buildKhuonPlan(templateSet).rowsNeededPerSet : 0),
-    [templateSet],
+    () =>
+      templateSet ? buildKhuonPlan(templateSet, draft.bindings).rowsNeededPerSet : 0,
+    [templateSet, draft.bindings],
   );
 
   const boundIds = useMemo(
@@ -131,10 +198,17 @@ export function ProduceTab() {
     const limit = draft.limit ? Number(draft.limit) : null;
     void countCandidates(draft.sheet, filter, limit)
       .then((n) => {
-        if (!cancelled) setCandidateCount(n);
+        if (cancelled) return;
+        setCandidateCount(n);
+        setCandidateNotSynced(false);
       })
-      .catch(() => {
-        if (!cancelled) setCandidateCount(0);
+      .catch((e) => {
+        if (cancelled) return;
+        setCandidateCount(0);
+        // Keep "not synced" distinguishable from a real 0-rows-after-filter
+        // result, so the UI can point the user at Data → Cập nhật ngay
+        // instead of implying their filter matched nothing.
+        setCandidateNotSynced(e instanceof DataNotSyncedError);
       });
     return () => {
       cancelled = true;
@@ -143,12 +217,55 @@ export function ProduceTab() {
 
   const notEnough = rowsNeededPerSet > 0 && candidateCount < rowsNeededPerSet;
 
+  const bindable = useMemo(() => allElements(pages), [pages]);
+  const { bound: boundCount, total: totalBindable } = useMemo(
+    () => bindingStats(draft.bindings, bindable),
+    [draft.bindings, bindable],
+  );
+  const bindingIssues = useMemo(
+    () => validateBindings(draft.bindings, bindable),
+    [draft.bindings, bindable],
+  );
+
+  // lastUpdateStatus() alone only reflects the poller's state at render
+  // time — subscribe so the warning updates as soon as a background poll
+  // or manual sync changes it, instead of waiting on an unrelated re-render.
+  const [dataStale, setDataStale] = useState(
+    () => lastUpdateStatus()?.reason === "stale",
+  );
+  useEffect(() => {
+    setDataStale(lastUpdateStatus()?.reason === "stale");
+    return onUpdateStatus((st) => setDataStale(st.reason === "stale"));
+  }, []);
+
+  function getGenerateBlockReason(): string | null {
+    if (busy) return "Đang xử lý…";
+    if (!templateSet) return "Chưa có bộ mẫu";
+    if (!draft.sheet) return "Chọn bảng dữ liệu bên trái";
+    if (candidateNotSynced) {
+      return "Chưa đồng bộ dữ liệu từ server — vào tab Dữ liệu bấm Cập nhật ngay.";
+    }
+    if (bindingIssues.length > 0) {
+      const names = bindingIssues.slice(0, 3).map((i) => i.label);
+      const extra = bindingIssues.length > 3 ? ` (+${bindingIssues.length - 3})` : "";
+      return `Chưa gán xong: ${names.join(", ")}${extra}`;
+    }
+    if (notEnough) {
+      return `Không đủ dòng (cần ${rowsNeededPerSet}, có ${candidateCount})`;
+    }
+    return null;
+  }
+
+  const generateBlockReason = getGenerateBlockReason();
+  const canGenerate = !generateBlockReason;
+
+  const templateKey = `${draft.id || "new"}:${templateSet?.id ?? ""}`;
+
   function clearGenerated() {
     if (rendered) revokeRenderedSets(rendered);
     setRendered(null);
-    setCaptions({});
+    setGenSets([]);
     setSelected(new Set());
-    setSummaries({});
     setResult(null);
   }
 
@@ -187,7 +304,7 @@ export function ProduceTab() {
       return;
     }
     try {
-      setColumns(await sheetColumns(sheet));
+      setColumns(await cachedSheetColumns(sheet));
       const m = await loadMapping();
       setCanonFields(Object.keys(m.sheets[sheet]?.fields ?? {}));
     } catch (e) {
@@ -203,24 +320,13 @@ export function ProduceTab() {
     try {
       const r = await loadRecipe(id);
       const d = recipeToDraft(r);
+      // chooseSet already stores the draft merged with element hints —
+      // overwriting it with `d` afterwards would drop those prefills.
       await chooseSet(r.templateId, d);
       await chooseSheet(r.data.sheet);
-      setDraft(d);
       ok(`Đã mở khuôn: ${r.name}`);
     } catch (e) {
       fail(`Lỗi mở khuôn: ${String(e)}`);
-    }
-  }
-
-  async function savePreset() {
-    try {
-      const recipe = draftToRecipe(draft, allElements(pages));
-      const id = await saveRecipe(recipe);
-      setRecipes(await listRecipes());
-      setD({ id });
-      ok(`Đã lưu khuôn: ${id}`);
-    } catch (e) {
-      fail(`Lỗi lưu khuôn: ${String(e)}`);
     }
   }
 
@@ -236,10 +342,20 @@ export function ProduceTab() {
     setCanonFields([]);
     const base = { ...emptyDraft(templateId), name: name || "Khuôn mới" };
     await chooseSet(templateId, base);
+    try {
+      const cached = await listCachedSheets();
+      if (cached.length === 1) {
+        await chooseSheet(cached[0]!.sheet);
+        ok(`Đã chọn bảng: ${cached[0]!.label}`);
+      }
+    } catch {
+      /* sheet auto-pick optional */
+    }
     setView("editor");
   }
 
   async function backToHome() {
+    if (!skipAutoSaveRef.current && templateSet) await autoSaveRecipe();
     clearGenerated();
     setRecipes(await listRecipes());
     setView("home");
@@ -264,8 +380,7 @@ export function ProduceTab() {
     }
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Xoá khuôn "${name}"? Không thể hoàn tác.`)) return;
+  async function handleDelete(id: string) {
     try {
       await deleteRecipe(id);
       setRecipes(await listRecipes());
@@ -274,9 +389,15 @@ export function ProduceTab() {
     }
   }
 
-  /** Step 1: generate + render all sets in memory, then open the review view. */
+  /** Step 1: generate + render all sets in memory — pure preview, no captions. */
   async function generateNow() {
-    if (!templateSet) return;
+    if (!templateSet || !canGenerate) return;
+    if (lastUpdateStatus()?.reason === "stale") {
+      notifications.show({
+        color: "yellow",
+        message: "Dữ liệu trên máy chưa phải bản mới nhất — vào tab Dữ liệu để cập nhật.",
+      });
+    }
     setBusy(true);
     setProgress({ done: 0, total: 0 });
     setStageMsg("Đang dựng dữ liệu…");
@@ -285,21 +406,67 @@ export function ProduceTab() {
       const payload = await buildGenerate(templateSet, recipe);
 
       setStageMsg("Đang render ảnh…");
-      const r = await renderSets(templateSet, payload, recipe, {
+      const { sets: r, errors } = await renderSets(templateSet, payload, recipe, {
         onProgress: (done, total) => setProgress({ done, total }),
       });
 
-      const sums: Record<number, string[]> = {};
-      for (const s of payload.sets) sums[s.setIndex] = setItemNames(s);
+      if (rendered) revokeRenderedSets(rendered);
+      setRendered(r);
+      setGenSets(payload.sets);
+      setSelected(new Set(r.map((s) => s.setIndex)));
+      setResult(null);
+      setPreviewCollapsed(false);
 
-      // Render finished — clear the bar so caption progress reads cleanly.
+      if (errors.length > 0) {
+        // Render failures drop only the affected set (see renderSets) so the
+        // rest of the batch still succeeds — but the user must know some
+        // sets are missing and why, instead of silently getting fewer sets
+        // than requested.
+        const failedSets = new Set(errors.map((e) => e.setIndex));
+        notifications.show({
+          color: "yellow",
+          message: `${r.length} bộ đã sinh thành công, ${failedSets.size} bộ lỗi khi render và đã bị bỏ qua: ${errors[0]!.message}`,
+        });
+      }
+    } catch (e) {
+      fail(`Lỗi sinh ảnh: ${String(e)}`);
+    } finally {
+      setBusy(false);
+      setStageMsg("");
       setProgress({ done: 0, total: 0 });
+    }
+  }
 
-      let caps: Record<number, string> = {};
+  /** Step 2: caption (AI, only now) + zip the selected sets wherever the user picks. */
+  async function exportSelected() {
+    if (!rendered) return;
+    const chosen = rendered.filter((s) => selected.has(s.setIndex));
+    if (!chosen.length) {
+      fail("Chưa chọn bộ nào để xuất.");
+      return;
+    }
+    try {
+      // recipe.output.dir (defaults to output/<khuôn-id> — see draftToRecipe)
+      // is where the save dialog opens, so a saved recipe's export folder is
+      // actually honored instead of always landing under the same output/.
+      const recipe = draftToRecipe(draft, allElements(pages));
+      const outDir = paths.outputSub(recipe.output.dir);
+      await ensureDir(outDir);
+      const dest = await save({
+        defaultPath: join(outDir, timestampZipName()),
+        filters: [{ name: "Zip", extensions: ["zip"] }],
+      });
+      if (!dest) return;
+      setBusy(true);
+
+      // Captions are generated at export time, for the selected sets only,
+      // and land in each set's caption.txt inside the zip.
+      let captions: Record<number, string> = {};
       if (draft.captionEnabled) {
         if (aiConfigured()) {
+          const chosenSets = genSets.filter((s) => selected.has(s.setIndex));
           setStageMsg("Đang sinh caption AI…");
-          caps = await generateCaptions(recipe, payload.sets, (done, total) =>
+          captions = await generateCaptions(recipe, chosenSets, (done, total) =>
             setStageMsg(`Đang sinh caption AI… ${done}/${total}`),
           );
         } else {
@@ -310,37 +477,7 @@ export function ProduceTab() {
         }
       }
 
-      if (rendered) revokeRenderedSets(rendered);
-      setRendered(r);
-      setCaptions(caps);
-      setSelected(new Set(r.map((s) => s.setIndex)));
-      setSummaries(sums);
-      setResult(null);
-      setView("review");
-    } catch (e) {
-      fail(`Lỗi sinh ảnh: ${String(e)}`);
-    } finally {
-      setBusy(false);
-      setStageMsg("");
-    }
-  }
-
-  /** Step 2: zip only the selected sets and write wherever the user picks. */
-  async function exportSelected() {
-    if (!rendered) return;
-    const chosen = rendered.filter((s) => selected.has(s.setIndex));
-    if (!chosen.length) {
-      fail("Chưa chọn bộ nào để xuất.");
-      return;
-    }
-    try {
-      await ensureDir(paths.outputDir());
-      const dest = await save({
-        defaultPath: join(paths.outputDir(), timestampZipName()),
-        filters: [{ name: "Zip", extensions: ["zip"] }],
-      });
-      if (!dest) return;
-      setBusy(true);
+      setStageMsg("Đang nén file…");
       const { zipBytes, fileCount } = zipRendered(chosen, captions, draft.format);
       await writeBytes(dest, zipBytes);
       setResult({ dest, count: chosen.length });
@@ -349,6 +486,7 @@ export function ProduceTab() {
       fail(`Lỗi xuất ảnh: ${String(e)}`);
     } finally {
       setBusy(false);
+      setStageMsg("");
     }
   }
 
@@ -387,78 +525,24 @@ export function ProduceTab() {
           onCreate={(templateId, name) => void createRecipe(templateId, name)}
           onDuplicate={(id) => void handleDuplicate(id)}
           onRename={(id, name) => void handleRename(id, name)}
-          onDelete={(id, name) => void handleDelete(id, name)}
+          onDelete={(id, name) => setDeleteTarget({ id, name })}
         />
-      </div>
-    );
-  }
-
-  if (view === "review" && rendered) {
-    return (
-      <div className="produce">
-        <Group className="produce-head" gap="md" align="center" wrap="wrap">
-          <Button
-            variant="subtle"
-            color="gray"
-            leftSection={<IconArrowLeft size={18} />}
-            onClick={() => setView("editor")}
-          >
-            Chỉnh khuôn
-          </Button>
-          <Box mr="auto">
-            <Title order={3}>Xem trước — {draft.name || "Khuôn"}</Title>
-            <Text c="dimmed" size="sm">
-              Bỏ chọn bộ không ưng rồi bấm Xuất ảnh
-            </Text>
-          </Box>
-          <Button variant="default" onClick={toggleAll}>
-            {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
-          </Button>
-          <Button
-            leftSection={<IconDownload size={18} />}
-            onClick={() => void exportSelected()}
-            disabled={busy || selected.size === 0}
-            loading={busy}
-          >
-            Xuất ảnh ({selected.size} bộ)
-          </Button>
-        </Group>
-
-        <div className="review-body">
-          <SetReviewGallery
-            rendered={rendered}
-            captions={captions}
-            selected={selected}
-            summaries={summaries}
-            captionEnabled={draft.captionEnabled}
-            onToggle={toggleSet}
-            onCaptionChange={(i, c) => setCaptions((prev) => ({ ...prev, [i]: c }))}
-          />
-
-          {result && (
-            <Card withBorder radius="lg" padding="lg">
-              <Group justify="space-between">
-                <Text size="sm">
-                  Đã xuất {result.count} bộ → <b>{result.dest}</b>
-                </Text>
-                <Button
-                  variant="light"
-                  leftSection={<IconFolderOpen size={18} />}
-                  onClick={() => void openPath(result.dest.replace(/[\\/][^\\/]*$/, ""))}
-                >
-                  Mở thư mục
-                </Button>
-              </Group>
-            </Card>
-          )}
-        </div>
+        <ConfirmModal
+          opened={deleteTarget !== null}
+          title="Xoá khuôn"
+          message={`Xoá khuôn "${deleteTarget?.name ?? ""}"? Không thể hoàn tác.`}
+          onConfirm={() => {
+            if (deleteTarget) void handleDelete(deleteTarget.id);
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
       </div>
     );
   }
 
   return (
     <div className="produce">
-      <Group className="produce-head" gap="md" align="flex-end" wrap="wrap">
+      <Group className="produce-head" gap="md" align="center" wrap="wrap">
         <Button
           variant="subtle"
           color="gray"
@@ -467,67 +551,106 @@ export function ProduceTab() {
         >
           Khuôn
         </Button>
-        <Box mr="auto">
-          <Title order={3}>{draft.name || "Khuôn mới"}</Title>
-          <Text c="dimmed" size="sm">
-            Gán dữ liệu theo trang, sinh nhiều bộ ngẫu nhiên
-          </Text>
-        </Box>
-        <Select
-          label="Bộ mẫu"
-          placeholder="— Chọn bộ —"
-          w={210}
-          clearable
-          value={draft.templateId || null}
-          data={sets.map((t) => ({ value: t.id, label: t.name }))}
-          onChange={(v) => void chooseSet(v ?? "")}
-        />
-        <Button leftSection={<IconDeviceFloppy size={18} />} onClick={() => void savePreset()}>
-          Lưu khuôn
-        </Button>
+        <Title order={3} mr="auto">
+          {draft.name || "Khuôn mới"}
+        </Title>
       </Group>
 
       {dataAlert}
 
-      <KhuonEditor
-        draft={draft}
-        setD={setD}
-        pages={pages}
-        previews={previews}
-        sheets={sheets}
-        columns={columns}
-        canonFields={canonFields}
-        boundIds={boundIds}
-        rowsNeededPerSet={rowsNeededPerSet}
-        candidateCount={candidateCount}
+      <ProduceStatusBar
+        hasSheet={Boolean(draft.sheet)}
+        boundCount={boundCount}
+        totalBindable={totalBindable}
         notEnough={notEnough}
-        onChooseSheet={(s) => void chooseSheet(s)}
+        notSynced={candidateNotSynced}
+        rowsNeeded={rowsNeededPerSet}
+        candidateCount={candidateCount}
+        hasRendered={Boolean(rendered)}
+        dataStale={Boolean(dataStale)}
       />
 
-      <Group className="produce-actions" gap="md">
-        <Button
-          leftSection={<IconSparkles size={18} />}
-          onClick={() => void generateNow()}
-          disabled={busy || !templateSet || !draft.sheet || notEnough}
-          loading={busy}
-        >
-          Sinh ảnh ({draft.randomSetCount} bộ)
-        </Button>
-        {rendered && !busy && (
-          <Button variant="light" onClick={() => setView("review")}>
-            Xem bộ đã sinh ({rendered.length})
+      <div className="produce-body">
+        <div className="produce-editor-wrap">
+          <KhuonEditor
+            draft={draft}
+            setD={setD}
+            templateSet={templateSet}
+            templateKey={templateKey}
+            pages={pages}
+            previews={previews}
+            sheets={sheets}
+            columns={columns}
+            canonFields={canonFields}
+            boundIds={boundIds}
+            rowsNeededPerSet={rowsNeededPerSet}
+            candidateCount={candidateCount}
+            notEnough={notEnough}
+            candidateNotSynced={candidateNotSynced}
+            onChooseSheet={(s) => void chooseSheet(s)}
+          />
+        </div>
+
+        {rendered && (
+          <GeneratedSetsPanel
+            rendered={rendered}
+            selected={selected}
+            allSelected={allSelected}
+            collapsed={previewCollapsed}
+            zoom={previewZoom}
+            onToggleCollapse={() => setPreviewCollapsed((c) => !c)}
+            onZoomChange={setPreviewZoom}
+            onToggle={toggleSet}
+            onToggleAll={toggleAll}
+          />
+        )}
+      </div>
+
+      <Group className="produce-actions" gap="md" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
+          <Button
+            leftSection={<IconSparkles size={18} />}
+            onClick={() => void generateNow()}
+            disabled={!canGenerate}
+            loading={busy}
+          >
+            Sinh ảnh ({draft.randomSetCount} bộ)
           </Button>
-        )}
-        {progress.total > 0 && busy && (
-          <Box style={{ flex: 1 }}>
-            <Progress value={percent} animated />
-          </Box>
-        )}
-        {busy && (
-          <Text c="dimmed" size="sm">
-            {stageMsg || `${progress.done}/${progress.total}`}
+          {rendered && (
+            <Button
+              variant="light"
+              leftSection={<IconDownload size={18} />}
+              onClick={() => void exportSelected()}
+              disabled={busy || selected.size === 0}
+            >
+              Xuất ảnh ({selected.size} bộ)
+            </Button>
+          )}
+          {result && !busy && (
+            <Button
+              variant="subtle"
+              leftSection={<IconFolderOpen size={18} />}
+              onClick={() => void openPath(result.dest.replace(/[\\/][^\\/]*$/, ""))}
+            >
+              Mở thư mục
+            </Button>
+          )}
+        </Group>
+        {!canGenerate && generateBlockReason && !busy && (
+          <Text className="produce-actions-msg" size="xs" c="red" lineClamp={2}>
+            {generateBlockReason}
           </Text>
         )}
+        <Box className="produce-actions-progress">
+          {busy ? (
+            <>
+              <Progress value={percent} animated mb={4} />
+              <Text c="dimmed" size="xs" lineClamp={1}>
+                {stageMsg || `${progress.done}/${progress.total}`}
+              </Text>
+            </>
+          ) : null}
+        </Box>
       </Group>
     </div>
   );

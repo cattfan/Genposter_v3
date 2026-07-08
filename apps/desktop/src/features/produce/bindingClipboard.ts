@@ -48,8 +48,9 @@ export function pasteGroupBindings(
     sourceMembers.filter((m) => pred(m.type));
   const tgtByType = (pred: (t: string) => boolean) =>
     targetMembers.filter((m) => pred(m.type));
-  const isText = (t: string) => t === "textbox" || t === "i-text" || t === "text";
-  const isImg = (t: string) => t === "image";
+  // Serialized fabric v6 types are capitalized class names ("Textbox").
+  const isText = (t: string) => ["textbox", "i-text", "text"].includes(t.toLowerCase());
+  const isImg = (t: string) => t.toLowerCase() === "image";
 
   for (const pred of [isText, isImg] as const) {
     const src = srcByType(pred);

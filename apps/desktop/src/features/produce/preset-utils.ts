@@ -3,6 +3,26 @@ import { DEFAULT_CAPTION_PROMPT, type Recipe } from "@genposter/schema";
 import { slugify } from "../../lib/paths.js";
 import type { ElementInfo } from "./elements.js";
 
+/** JPG export always at maximum quality. */
+export const EXPORT_QUALITY = 100;
+
+/** Derive how many item/set photos to load from binding tokens (photo:item:N, photo:set:N). */
+export function derivePhotoCounts(bindings: Record<string, string>): {
+  perItem: number;
+  perSet: number;
+} {
+  let perItem = 1;
+  let perSet = 0;
+  for (const bind of Object.values(bindings)) {
+    if (!bind) continue;
+    const item = /^photo:item:(\d+)$/.exec(bind);
+    if (item) perItem = Math.max(perItem, Number(item[1]) + 1);
+    const set = /^photo:set:(\d+)$/.exec(bind);
+    if (set) perSet = Math.max(perSet, Number(set[1]) + 1);
+  }
+  return { perItem, perSet };
+}
+
 /** Flat, form-friendly representation of a recipe used by the Produce UI. */
 export interface Draft {
   id: string;
@@ -12,7 +32,9 @@ export interface Draft {
   filterField: string;
   filterValue: string;
   limit: string;
+  /** @deprecated Derived from bindings at export — kept for recipe round-trip. */
   perItem: number;
+  /** @deprecated Derived from bindings at export — kept for recipe round-trip. */
   perSet: number;
   randomSetCount: number;
   /** elementId -> binding token */
@@ -21,6 +43,7 @@ export interface Draft {
   captionPrompt: string;
   outDir: string;
   format: "jpg" | "png";
+  /** @deprecated Always EXPORT_QUALITY on save — kept for recipe round-trip. */
   quality: number;
 }
 
@@ -41,7 +64,7 @@ export function emptyDraft(templateId = ""): Draft {
     captionPrompt: DEFAULT_CAPTION_PROMPT,
     outDir: "",
     format: "jpg",
-    quality: 90,
+    quality: EXPORT_QUALITY,
   };
 }
 
@@ -69,6 +92,7 @@ export function draftToRecipe(d: Draft, elements: ElementInfo[]): Recipe {
   const filter =
     d.filterField && d.filterValue ? { [d.filterField]: d.filterValue } : {};
 
+  const photos = derivePhotoCounts(d.bindings);
   const id = slugify(d.id || d.name);
   return {
     id,
@@ -79,7 +103,7 @@ export function draftToRecipe(d: Draft, elements: ElementInfo[]): Recipe {
       filter,
       limit: d.limit ? Number(d.limit) : null,
     },
-    photos: { perItem: d.perItem, perSet: d.perSet },
+    photos,
     randomSetCount: d.randomSetCount,
     bindings,
     caption: {
@@ -89,7 +113,7 @@ export function draftToRecipe(d: Draft, elements: ElementInfo[]): Recipe {
     output: {
       dir: d.outDir || `output/${id}`,
       format: d.format,
-      quality: d.quality,
+      quality: EXPORT_QUALITY,
     },
   };
 }
