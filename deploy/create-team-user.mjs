@@ -66,7 +66,10 @@ function runSql(sql) {
     "-i",
     SSH_KEY,
     "-o",
-    "StrictHostKeyChecking=no",
+    // Accept a new host key non-interactively (needed for unattended runs)
+    // but still refuse to connect if a known host's key ever changes —
+    // unlike StrictHostKeyChecking=no, this still protects later runs.
+    "StrictHostKeyChecking=accept-new",
     SSH_TARGET,
     "docker exec -i genposter-postgres-1 psql -U genposter -d genposter",
   ];
