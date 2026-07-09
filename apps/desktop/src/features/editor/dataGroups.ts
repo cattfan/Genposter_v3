@@ -98,3 +98,21 @@ export function appendMembersToGroup(
     return { ...g, memberIds: merged };
   });
 }
+
+/**
+ * After duplicate/paste, clones keep `gpDataGroup` but get new ids — add those
+ * ids into the matching data group's memberIds so slot/repeat binding still
+ * finds them (syncGroupMembers only prunes, never adds).
+ */
+export function registerClonedGroupMembers(
+  groups: DataGroupDef[],
+  objects: fabric.FabricObject[],
+): DataGroupDef[] {
+  let next = groups;
+  for (const obj of flattenObjects(objects)) {
+    const gid = getObjectGroupId(obj);
+    if (!gid) continue;
+    next = appendMembersToGroup(next, gid, [getId(obj)]);
+  }
+  return next;
+}

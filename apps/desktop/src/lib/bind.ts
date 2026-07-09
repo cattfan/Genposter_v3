@@ -53,9 +53,26 @@ export function resolvePhoto(bind: string, ctx: BindContext): string | null {
   return arr[idx] ?? null;
 }
 
-/** Fill {{token}} placeholders (used by AI prompt templates). */
+/** True when a token is already a full bind expression resolveText understands. */
+function isFullBindToken(key: string): boolean {
+  return (
+    key === "n" ||
+    key.startsWith("item.") ||
+    key.startsWith("static:") ||
+    key.startsWith("photo:") ||
+    key.startsWith("ai:")
+  );
+}
+
+/**
+ * Fill {{token}} placeholders (used by AI prompt templates). A bare field
+ * name like {{name}} is treated as {{item.name}} — writing the full
+ * "item.name" form still works, but it's not the obvious thing to type in a
+ * prompt, and a typo there silently resolved to "" with no hint why.
+ */
 export function fillTokens(tpl: string, ctx: BindContext): string {
   return tpl.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key: string) => {
-    return resolveText(key, ctx);
+    const bind = isFullBindToken(key) ? key : `item.${key}`;
+    return resolveText(bind, ctx);
   });
 }

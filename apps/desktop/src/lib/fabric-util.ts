@@ -10,6 +10,7 @@ export const CUSTOM_PROPS = [
   "gpLocked",
   "gpCornerRadius",
   "gpPageFrame",
+  "gpPageClip",
 ] as const;
 
 let counter = 0;
@@ -86,7 +87,7 @@ export function tuneTextForZoom(obj: fabric.Object): void {
 }
 
 export function tuneAllTextForZoom(canvas: fabric.Canvas): void {
-  for (const obj of canvas.getObjects()) tuneTextForZoom(obj);
+  for (const obj of flattenObjects(canvas.getObjects())) tuneTextForZoom(obj);
 }
 
 /** A neutral placeholder image data URL for image slots in the editor. */

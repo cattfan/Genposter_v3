@@ -6,6 +6,7 @@ import type {
   TemplateSet,
 } from "@genposter/schema";
 
+import { aiKey } from "../../lib/bind.js";
 import { loadPreviewRows } from "../../lib/generate.js";
 import { loadMapping } from "../../lib/mapping.js";
 import { buildKhuonPlan, PAGE_SOLO_GROUP, type KhuonPlan } from "../../lib/khuon-plan.js";
@@ -64,7 +65,7 @@ function buildBindsMap(
  * twice within one preview "set" once `startIndex` got close to the end,
  * showing a duplicate item that an actual generate run would never produce.
  */
-function pickSetRows(allRows: DataRow[], startIndex: number, count: number): DataRow[] {
+export function pickSetRows(allRows: DataRow[], startIndex: number, count: number): DataRow[] {
   if (!allRows.length || count <= 0) return [];
   const n = Math.min(count, allRows.length);
   const maxStart = Math.max(0, allRows.length - n);
@@ -188,6 +189,21 @@ export async function renderDesignDataPreview(
   return dataUrl;
 }
 
+/**
+ * ai:-bound elements only get their real text from applyAiBindings at
+ * generate time (calling the AI API on every preview keystroke would be
+ * slow/expensive) — stand in with an explanatory hint instead of leaving
+ * the box looking blank/broken in "Xem với dữ liệu".
+ */
+const AI_PREVIEW_HINT = "(AI sẽ sinh khi Xuất ảnh)";
+
+function withAiPreviewHints(rows: DataRow[], bindings: Record<string, string>): DataRow[] {
+  const aiElementIds = Object.keys(bindings).filter((id) => bindings[id]?.startsWith("ai:"));
+  if (!aiElementIds.length) return rows;
+  const patch = Object.fromEntries(aiElementIds.map((id) => [aiKey(id), AI_PREVIEW_HINT]));
+  return rows.map((r) => ({ ...r, ...patch }));
+}
+
 export interface ProducePreviewDraft {
   sheet: string;
   filterField: string;
@@ -220,8 +236,11 @@ export async function renderProduceBoundPreview(
   });
   if (!rows.length) return "";
 
-  return renderDesignDataPreview(set, pageIndex, rows, startRowIndex, {
-    perSet,
-    bindings: draft.bindings,
-  });
+  return renderDesignDataPreview(
+    set,
+    pageIndex,
+    withAiPreviewHints(rows, draft.bindings),
+    startRowIndex,
+    { perSet, bindings: draft.bindings },
+  );
 }

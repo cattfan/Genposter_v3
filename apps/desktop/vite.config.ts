@@ -207,7 +207,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["@genposter/schema"],
-    include: ["fabric", "xlsx", "js-yaml"],
+    include: ["fabric", "js-yaml"],
   },
   server: {
     port: 1420,

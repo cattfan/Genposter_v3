@@ -1,8 +1,19 @@
-import type { GeneratedSet, Recipe } from "@genposter/schema";
+import type { DataRow, GeneratedSet, Recipe } from "@genposter/schema";
 
 import { aiKey, fillTokens } from "./bind.js";
 import { PAGE_SOLO_GROUP, type KhuonPlan } from "./khuon-plan.js";
 import { settings } from "./settings.js";
+
+interface AiTask {
+  row: DataRow;
+  elId: string;
+  prompt: string;
+  n: number;
+}
+
+/** Requests in flight at once — enough to overlap network latency without
+ * tripping the AI provider's rate limits. */
+const AI_CONCURRENCY = 3;
 
 /**
  * AI text transform hook. For every binding shaped `ai:<prompt>`, generate text
@@ -13,6 +24,7 @@ export async function applyAiBindings(
   recipe: Recipe,
   sets: GeneratedSet[],
   plan: KhuonPlan,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
   const aiBinds = recipe.bindings.filter((b) => b.bind.startsWith("ai:"));
   if (!aiBinds.length) return;
@@ -28,6 +40,7 @@ export async function applyAiBindings(
       membersByPageGroup.set(`${p.pageId}::${PAGE_SOLO_GROUP}`, p.soloIds);
   }
 
+  const tasks: AiTask[] = [];
   for (const set of sets) {
     for (const page of set.pages) {
       for (const gf of page.groups) {
@@ -36,18 +49,39 @@ export async function applyAiBindings(
           const prompt = promptByEl.get(elId);
           if (!prompt) continue;
           for (let i = 0; i < gf.rows.length; i++) {
-            const row = gf.rows[i]!;
-            const filled = fillTokens(prompt, { row, n: i + 1 });
-            try {
-              row[aiKey(elId)] = await complete(cfg, filled);
-            } catch {
-              row[aiKey(elId)] = "";
-            }
+            tasks.push({ row: gf.rows[i]!, elId, prompt, n: i + 1 });
           }
         }
       }
     }
   }
+  if (!tasks.length) return;
+
+  let done = 0;
+  async function runTask(task: AiTask): Promise<void> {
+    const filled = fillTokens(task.prompt, { row: task.row, n: task.n });
+    try {
+      task.row[aiKey(task.elId)] = await complete(cfg, filled);
+    } catch {
+      task.row[aiKey(task.elId)] = "";
+    }
+    done++;
+    onProgress?.(done, tasks.length);
+  }
+
+  // Bounded-concurrency worker pool: each worker pulls the next task from a
+  // shared cursor until the queue is empty, instead of one request at a time.
+  let next = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next++;
+      if (i >= tasks.length) return;
+      await runTask(tasks[i]!);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(AI_CONCURRENCY, tasks.length) }, worker),
+  );
 }
 
 export interface AiCfg {

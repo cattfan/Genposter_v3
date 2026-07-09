@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DataRow, TemplateSet } from "@genposter/schema";
-import { buildKhuonPlan, generateSets } from "./khuon-plan.js";
+import { buildKhuonPlan, generateSets, PAGE_SOLO_GROUP } from "./khuon-plan.js";
 
 function mulberry32(seed: number): () => number {
   let a = seed;
@@ -73,5 +73,41 @@ describe("generateSets", () => {
     const p2 = out[0]!.pages.find((p) => p.pageId === "p2")!;
     expect(p1.groups[0]!.rows).toHaveLength(1);
     expect(p2.groups[0]!.rows).toHaveLength(5);
+  });
+});
+
+describe("buildKhuonPlan solo rows", () => {
+  const soloSet: TemplateSet = {
+    id: "solo",
+    name: "Solo",
+    width: 1000,
+    height: 1000,
+    pages: [
+      {
+        id: "p1",
+        scene: {
+          objects: [
+            { id: "title", gpBind: "item.name" },
+            { id: "static", gpBind: "static:Hello" },
+          ],
+          dataGroups: [],
+        },
+      },
+    ],
+  };
+
+  it("reserves one row per page for solo row-bound elements", () => {
+    const plan = buildKhuonPlan(soloSet, { title: "item.name", static: "static:Hi" });
+    expect(plan.rowsNeededPerSet).toBe(1);
+    expect(plan.slots).toEqual([{ pageId: "p1", groupId: PAGE_SOLO_GROUP, count: 1 }]);
+    expect(plan.pages[0]!.soloIds).toEqual(["title"]);
+  });
+
+  it("assigns the solo row to PAGE_SOLO_GROUP in generateSets", () => {
+    const plan = buildKhuonPlan(soloSet, { title: "item.name" });
+    const out = generateSets(plan, rows, 1, 0, mulberry32(4));
+    const solo = out[0]!.pages[0]!.groups.find((g) => g.groupId === PAGE_SOLO_GROUP);
+    expect(solo?.rows).toHaveLength(1);
+    expect(solo?.rows[0]?.name).toBeTruthy();
   });
 });

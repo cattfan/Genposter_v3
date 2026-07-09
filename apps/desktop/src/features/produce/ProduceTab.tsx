@@ -398,12 +398,25 @@ export function ProduceTab({ active = true }: { active?: boolean }) {
         message: "Dữ liệu trên máy chưa phải bản mới nhất — vào tab Dữ liệu để cập nhật.",
       });
     }
+    if (!aiConfigured() && Object.values(draft.bindings).some((b) => b.startsWith("ai:"))) {
+      // applyAiBindings silently no-ops without a key, so these elements
+      // would render blank with no explanation unless we warn up front.
+      notifications.show({
+        color: "yellow",
+        message: "Chưa cấu hình AI API — các vùng AI sẽ để trống. Vào tab Cài đặt để cấu hình.",
+      });
+    }
     setBusy(true);
     setProgress({ done: 0, total: 0 });
     setStageMsg("Đang dựng dữ liệu…");
     try {
       const recipe = draftToRecipe(draft, allElements(pages));
-      const payload = await buildGenerate(templateSet, recipe);
+      const payload = await buildGenerate(templateSet, recipe, {
+        onAiProgress: (done, total) => {
+          setStageMsg(`Đang sinh chữ AI… ${done}/${total}`);
+          setProgress({ done, total });
+        },
+      });
 
       setStageMsg("Đang render ảnh…");
       const { sets: r, errors } = await renderSets(templateSet, payload, recipe, {

@@ -1,6 +1,7 @@
 import * as fabric from "fabric";
 import type { FabricScene, TemplateSet } from "@genposter/schema";
 
+import { flattenObjects } from "../../lib/fabric-util.js";
 import { ensureFonts } from "../../lib/fonts.js";
 
 export interface ElementBox {
@@ -45,9 +46,11 @@ export async function renderPagePreviews(
       canvas.renderAll();
 
       const boxes: ElementBox[] = [];
-      for (const o of canvas.getObjects()) {
+      for (const o of flattenObjects(canvas.getObjects())) {
         const props = o as unknown as { id?: string; gpDataGroup?: string };
         if (!props.id) continue;
+        // Skip the layout-group container itself — hit targets are the members.
+        if (o.type === "group") continue;
         const r = o.getBoundingRect();
         boxes.push({
           id: props.id,

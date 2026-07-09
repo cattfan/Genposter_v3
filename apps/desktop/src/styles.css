@@ -184,3 +184,13 @@ body {
   background: rgba(255, 102, 0, 0.1) !important;
   color: var(--rv-ink) !important;
 }
+
+/* ---------- First-run project folder ---------- */
+.root-setup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px 24px;
+  background: linear-gradient(180deg, #fff 0%, var(--rv-bg) 100%);
+}

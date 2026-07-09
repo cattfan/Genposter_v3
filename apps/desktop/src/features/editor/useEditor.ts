@@ -12,8 +12,10 @@ import {
 import { ensureFonts } from "../../lib/fonts.js";
 import {
   applyObjectLock,
+  flattenObjects,
   getBool,
   getId,
+  isGroupObject,
   isImageType,
   isTextType,
   placeholderDataUrl,
@@ -31,6 +33,7 @@ import {
   findGroup,
   getObjectGroupId,
   migrateSceneDataGroups,
+  registerClonedGroupMembers,
   removeMemberFromGroups,
   syncGroupMembers,
   updateGroup,
@@ -67,6 +70,22 @@ function editableTargets(c: fabric.Canvas): fabric.Object[] {
   return c.getActiveObjects().filter((o) => !isPageFrame(o));
 }
 
+/** Walk up to the top-level object (layout groups nest members). */
+function topSelectable(obj: fabric.Object): fabric.Object {
+  let cur = obj;
+  while (cur.group) cur = cur.group as fabric.Object;
+  return cur;
+}
+
+function applyPostLoadObjectPass(c: fabric.Canvas): void {
+  for (const obj of flattenObjects(c.getObjects())) {
+    applyObjectLock(obj);
+    tuneTextForZoom(obj);
+    if (isImageType(obj)) refitImageClip(obj);
+  }
+  tuneAllTextForZoom(c);
+}
+
 export type AlignKind =
   | "left"
   | "center-h"
@@ -87,6 +106,8 @@ export interface EditorApi {
   getActive: () => fabric.Object | null;
   getActiveMany: () => fabric.Object[];
   getObjects: () => fabric.Object[];
+  /** Top-level + nested layout-group members (for layers / id lookup). */
+  getFlattenedObjects: () => fabric.Object[];
 
   addText: (heading?: boolean) => void;
   addTextPreset: (preset: {
@@ -142,8 +163,10 @@ export interface EditorApi {
   groupLayout: () => void;
   ungroupLayout: () => void;
 
-  undo: () => void;
-  redo: () => void;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+  /** True while loadScene / undo / redo is applying a scene to the canvas. */
+  isRestoring: () => boolean;
 
   setZoom: (z: number) => void;
   setCanvasSize: (w: number, h: number) => void;
@@ -179,11 +202,32 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   const redoStack = useRef<string[]>([]);
   const restoring = useRef(false);
   const snapTimer = useRef<number | null>(null);
+  /** Serializes loadScene / undo / redo so concurrent loadFromJSON can't interleave. */
+  const canvasOpQueue = useRef<Promise<unknown>>(Promise.resolve());
   const dataGroupsRef = useRef<DataGroupDef[]>([]);
   const formatPainterArmed = useRef(false);
+  /** When true, object:removed for a layout group must not strip nested
+   * memberIds (ungroup moves children back onto the canvas). */
+  const suppressGroupMemberCleanup = useRef(false);
   /** Last scene successfully exported — the fallback exportScene() returns
    * while a load/undo/redo is still in flight (see exportScene below). */
   const lastExportedRef = useRef<FabricScene | null>(null);
+
+  function cancelSnapTimer() {
+    if (snapTimer.current) {
+      window.clearTimeout(snapTimer.current);
+      snapTimer.current = null;
+    }
+  }
+
+  function runCanvasExclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = canvasOpQueue.current.then(fn, fn);
+    canvasOpQueue.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -280,11 +324,22 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     canvas.on("object:added", snapshot);
     canvas.on("object:removed", (e) => {
       const target = e.target;
-      if (target) {
-        dataGroupsRef.current = removeMemberFromGroups(
-          dataGroupsRef.current,
-          getId(target),
-        );
+      if (target && !suppressGroupMemberCleanup.current) {
+        if (isGroupObject(target)) {
+          // Hard-delete of a layout group — drop nested member ids too.
+          for (const id of flattenObjects([target]).map(getId)) {
+            dataGroupsRef.current = removeMemberFromGroups(dataGroupsRef.current, id);
+          }
+          const layoutId = getId(target);
+          dataGroupsRef.current = dataGroupsRef.current.map((g) =>
+            g.layoutGroupId === layoutId ? { ...g, layoutGroupId: undefined } : g,
+          );
+        } else {
+          dataGroupsRef.current = removeMemberFromGroups(
+            dataGroupsRef.current,
+            getId(target),
+          );
+        }
       }
       snapshot();
     });
@@ -553,6 +608,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
       c.add(clone);
       clones.push(clone);
     }
+    dataGroupsRef.current = registerClonedGroupMembers(dataGroupsRef.current, clones);
     keepPageFrameAtBack(c);
     if (clones.length === 1) c.setActiveObject(clones[0]!);
     else if (clones.length > 1) {
@@ -719,8 +775,8 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     (id: string) => {
       const c = canvasRef.current;
       if (!c) return;
-      const obj = c.getObjects().find((o) => getId(o) === id);
-      if (obj) selectObject(obj);
+      const obj = flattenObjects(c.getObjects()).find((o) => getId(o) === id);
+      if (obj) selectObject(topSelectable(obj));
     },
     [selectObject],
   );
@@ -806,6 +862,7 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     if (!c || !hasObjectClipboard()) return false;
     const added = await pasteObjectsFromClipboard(c);
     if (!added.length) return false;
+    dataGroupsRef.current = registerClonedGroupMembers(dataGroupsRef.current, added);
     snapshot();
     bump();
     return true;
@@ -892,12 +949,18 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
       if (!c) return;
       const g = findGroup(dataGroupsRef.current, groupId);
       if (!g) return;
-      const objs = g.memberIds
-        .map((id) => c.getObjects().find((o) => getId(o) === id))
-        .filter((o): o is fabric.Object => Boolean(o));
-      if (!objs.length) return;
-      if (objs.length === 1) c.setActiveObject(objs[0]!);
-      else c.setActiveObject(new fabric.ActiveSelection(objs, { canvas: c }));
+      const byId = new Map(flattenObjects(c.getObjects()).map((o) => [getId(o), o]));
+      const tops = [
+        ...new Set(
+          g.memberIds
+            .map((id) => byId.get(id))
+            .filter((o): o is fabric.Object => Boolean(o))
+            .map(topSelectable),
+        ),
+      ];
+      if (!tops.length) return;
+      if (tops.length === 1) c.setActiveObject(tops[0]!);
+      else c.setActiveObject(new fabric.ActiveSelection(tops, { canvas: c }));
       c.requestRenderAll();
       bump();
     },
@@ -919,7 +982,13 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     const objs = c.getActiveObjects();
     if (objs.length < 2) return;
     c.discardActiveObject();
-    for (const o of objs) c.remove(o);
+    // Removing members to wrap them in a Group must not strip dataGroups.
+    suppressGroupMemberCleanup.current = true;
+    try {
+      for (const o of objs) c.remove(o);
+    } finally {
+      suppressGroupMemberCleanup.current = false;
+    }
     const group = new fabric.Group(objs);
     const layoutId = getId(group);
     const memberIds = objs.map((o) => getId(o));
@@ -938,30 +1007,46 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   const ungroupLayout = useCallback(() => {
     const c = canvasRef.current;
     const obj = c?.getActiveObject();
-    if (!c || !obj || obj.type !== "group") return;
-    const g = obj as fabric.Group;
+    if (!c || !obj || !isGroupObject(obj)) return;
+    const g = obj;
+    const layoutId = getId(g);
     const items = [...g.getObjects()];
-    c.remove(g);
+    suppressGroupMemberCleanup.current = true;
+    try {
+      c.remove(g);
+    } finally {
+      suppressGroupMemberCleanup.current = false;
+    }
     for (const item of items) c.add(item);
-    c.discardActiveObject();
+    dataGroupsRef.current = dataGroupsRef.current.map((dg) =>
+      dg.layoutGroupId === layoutId ? { ...dg, layoutGroupId: undefined } : dg,
+    );
+    if (items.length === 1) c.setActiveObject(items[0]!);
+    else if (items.length > 1) {
+      c.setActiveObject(new fabric.ActiveSelection(items, { canvas: c }));
+    } else {
+      c.discardActiveObject();
+    }
     c.requestRenderAll();
     snapshot();
     bump();
   }, [bump, snapshot]);
 
   const restore = useCallback(
-    (json: string) => {
+    async (json: string) => {
       const c = canvasRef.current;
       if (!c || !json) return;
+      cancelSnapTimer();
       restoring.current = true;
-      const parsed = JSON.parse(json) as FabricScene;
-      dataGroupsRef.current = (parsed.dataGroups as DataGroupDef[] | undefined) ?? [];
-      const { dataGroups: _dg, ...canvasJson } = parsed;
-      void _dg;
-      const pageFill = resolvePageFillFromScene(canvasJson as Record<string, unknown>);
-      canvasJson.backgroundColor = pageFill;
-      delete (canvasJson as Record<string, unknown>).background;
-      void c.loadFromJSON(canvasJson).then(() => {
+      try {
+        const parsed = JSON.parse(json) as FabricScene;
+        dataGroupsRef.current = (parsed.dataGroups as DataGroupDef[] | undefined) ?? [];
+        const { dataGroups: _dg, ...canvasJson } = parsed;
+        void _dg;
+        const pageFill = resolvePageFillFromScene(canvasJson as Record<string, unknown>);
+        canvasJson.backgroundColor = pageFill;
+        delete (canvasJson as Record<string, unknown>).background;
+        await c.loadFromJSON(canvasJson);
         for (const obj of [...c.getObjects()]) {
           if (isPageFrame(obj)) c.remove(obj);
         }
@@ -969,38 +1054,40 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
         shiftPageToEditorCoords(c);
         ensurePageFrame(c, sizeRef.current.w, sizeRef.current.h, pageFill);
         applyPageViewport(c, sizeRef.current.w, sizeRef.current.h, zoomRef.current);
-        for (const obj of c.getObjects()) {
-          applyObjectLock(obj);
-          tuneTextForZoom(obj);
-          if (isImageType(obj)) refitImageClip(obj);
-        }
-        tuneAllTextForZoom(c);
+        applyPostLoadObjectPass(c);
         dataGroupsRef.current = syncGroupMembers(dataGroupsRef.current, c);
         c.requestRenderAll();
         lastExportedRef.current = {
           ...canvasToPageSceneJson(c),
           dataGroups: dataGroupsRef.current,
         } as unknown as FabricScene;
+      } catch (e) {
+        notifications.show({ color: "red", message: `Lỗi hoàn tác: ${String(e)}` });
+      } finally {
         restoring.current = false;
         refreshHistoryFlags();
         bump();
-      });
+      }
     },
     [bump, refreshHistoryFlags],
   );
 
-  const undo = useCallback(() => {
-    if (undoStack.current.length < 2) return;
-    const cur = undoStack.current.pop()!;
-    redoStack.current.push(cur);
-    restore(undoStack.current[undoStack.current.length - 1]!);
+  const undo = useCallback((): Promise<void> => {
+    return runCanvasExclusive(async () => {
+      if (undoStack.current.length < 2) return;
+      const cur = undoStack.current.pop()!;
+      redoStack.current.push(cur);
+      await restore(undoStack.current[undoStack.current.length - 1]!);
+    });
   }, [restore]);
 
-  const redo = useCallback(() => {
-    const next = redoStack.current.pop();
-    if (!next) return;
-    undoStack.current.push(next);
-    restore(next);
+  const redo = useCallback((): Promise<void> => {
+    return runCanvasExclusive(async () => {
+      const next = redoStack.current.pop();
+      if (!next) return;
+      undoStack.current.push(next);
+      await restore(next);
+    });
   }, [restore]);
 
   const zoomIn = useCallback(() => applyZoom(zoom * 1.15), [applyZoom, zoom]);
@@ -1029,10 +1116,20 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
       if (!c || w < 1 || h < 1) return;
       const oldW = sizeRef.current.w;
       const oldH = sizeRef.current.h;
+      const pad = PASTEBOARD_PAD;
+
+      const clearOwnedPageClips = () => {
+        for (const obj of flattenObjects(c.getObjects())) {
+          if (!getBool(obj, "gpPageClip")) continue;
+          obj.clipPath = undefined;
+          setProp(obj, "gpPageClip", false);
+        }
+      };
+
       if (mode === "scaleContent" && oldW > 0 && oldH > 0) {
+        clearOwnedPageClips();
         const sx = w / oldW;
         const sy = h / oldH;
-        const pad = PASTEBOARD_PAD;
         for (const obj of c.getObjects()) {
           if (isPageFrame(obj)) continue;
           const pageLeft = (obj.left ?? 0) - pad;
@@ -1057,10 +1154,29 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
             scaleY: (bg.scaleY ?? 1) * sy,
           });
         }
+      } else if (mode === "clipOnly") {
+        // Keep object positions/scales; clip anything that spills past the
+        // new page edge (absolute clipPath). Skip objects that already use
+        // a corner-radius clip — those keep their own mask.
+        clearOwnedPageClips();
+        for (const obj of c.getObjects()) {
+          if (isPageFrame(obj)) continue;
+          if (obj.clipPath && getBool(obj, "gpCornerRadius")) continue;
+          obj.clipPath = new fabric.Rect({
+            left: pad,
+            top: pad,
+            width: w,
+            height: h,
+            absolutePositioned: true,
+          });
+          setProp(obj, "gpPageClip", true);
+        }
       }
+
       sizeRef.current = { w, h };
       syncPageFrameSize(c, w, h);
       applyZoom(zoomRef.current);
+      c.requestRenderAll();
       snapshot();
       bump();
     },
@@ -1103,44 +1219,46 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
   }, [bump, refreshHistoryFlags]);
 
   const loadScene = useCallback(
-    async (scene: FabricScene) => {
-      const c = canvasRef.current;
-      if (!c) return;
-      const migrated = migrateSceneDataGroups(scene);
-      dataGroupsRef.current = (migrated.dataGroups as DataGroupDef[] | undefined) ?? [];
-      restoring.current = true;
-      const { dataGroups: _dg, ...canvasJson } = migrated;
-      void _dg;
-      const pageFill = resolvePageFillFromScene(canvasJson as Record<string, unknown>);
-      canvasJson.backgroundColor = pageFill;
-      delete (canvasJson as Record<string, unknown>).background;
-      await c.loadFromJSON(canvasJson);
-      for (const obj of [...c.getObjects()]) {
-        if (isPageFrame(obj)) c.remove(obj);
-      }
-      c.backgroundColor = PASTEBOARD_COLOR;
-      shiftPageToEditorCoords(c);
-      ensurePageFrame(c, sizeRef.current.w, sizeRef.current.h, pageFill);
-      applyPageViewport(c, sizeRef.current.w, sizeRef.current.h, zoomRef.current);
-      for (const obj of c.getObjects()) {
-        applyObjectLock(obj);
-        tuneTextForZoom(obj);
-        if (isImageType(obj)) refitImageClip(obj);
-      }
-      tuneAllTextForZoom(c);
-      dataGroupsRef.current = syncGroupMembers(dataGroupsRef.current, c);
-      c.requestRenderAll();
-      const loaded = {
-        ...canvasToPageSceneJson(c),
-        dataGroups: dataGroupsRef.current,
-      } as unknown as FabricScene;
-      lastExportedRef.current = loaded;
-      restoring.current = false;
-      undoStack.current = [JSON.stringify(loaded)];
-      redoStack.current = [];
-      refreshHistoryFlags();
-      bump();
-    },
+    (scene: FabricScene) =>
+      runCanvasExclusive(async () => {
+        const c = canvasRef.current;
+        if (!c) return;
+        cancelSnapTimer();
+        restoring.current = true;
+        try {
+          const migrated = migrateSceneDataGroups(scene);
+          dataGroupsRef.current = (migrated.dataGroups as DataGroupDef[] | undefined) ?? [];
+          const { dataGroups: _dg, ...canvasJson } = migrated;
+          void _dg;
+          const pageFill = resolvePageFillFromScene(canvasJson as Record<string, unknown>);
+          canvasJson.backgroundColor = pageFill;
+          delete (canvasJson as Record<string, unknown>).background;
+          await c.loadFromJSON(canvasJson);
+          for (const obj of [...c.getObjects()]) {
+            if (isPageFrame(obj)) c.remove(obj);
+          }
+          c.backgroundColor = PASTEBOARD_COLOR;
+          shiftPageToEditorCoords(c);
+          ensurePageFrame(c, sizeRef.current.w, sizeRef.current.h, pageFill);
+          applyPageViewport(c, sizeRef.current.w, sizeRef.current.h, zoomRef.current);
+          applyPostLoadObjectPass(c);
+          dataGroupsRef.current = syncGroupMembers(dataGroupsRef.current, c);
+          c.requestRenderAll();
+          const loaded = {
+            ...canvasToPageSceneJson(c),
+            dataGroups: dataGroupsRef.current,
+          } as unknown as FabricScene;
+          lastExportedRef.current = loaded;
+          undoStack.current = [JSON.stringify(loaded)];
+          redoStack.current = [];
+        } catch (e) {
+          notifications.show({ color: "red", message: `Lỗi tải trang: ${String(e)}` });
+        } finally {
+          restoring.current = false;
+          refreshHistoryFlags();
+          bump();
+        }
+      }),
     [bump, refreshHistoryFlags],
   );
 
@@ -1298,6 +1416,12 @@ export function useEditor(opts?: { onSceneChange?: () => void }): EditorApi {
     getActive: () => canvasRef.current?.getActiveObject() ?? null,
     getActiveMany: () => canvasRef.current?.getActiveObjects() ?? [],
     getObjects: () => canvasRef.current?.getObjects() ?? [],
+    getFlattenedObjects: () => {
+      const c = canvasRef.current;
+      if (!c) return [];
+      return flattenObjects(c.getObjects());
+    },
+    isRestoring: () => restoring.current,
     addText,
     addTextPreset,
     addRect,

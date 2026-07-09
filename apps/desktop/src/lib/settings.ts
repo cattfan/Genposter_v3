@@ -30,7 +30,10 @@ export interface AppSettings {
 const KEY = "genposter.settings.v1";
 
 const DEFAULTS: AppSettings = {
-  rootDir: "C:/Users/cattfan/Desktop/Genposter_V3",
+  // No machine-specific guess here — an unconfigured rootDir must fail
+  // obviously (see isRootDirConfigured) rather than silently pointing at a
+  // path that only ever existed on the original dev machine.
+  rootDir: "",
   ai: {
     baseUrl: import.meta.env.VITE_AI_BASE_URL ?? "https://api.openai.com/v1",
     apiKey: import.meta.env.VITE_AI_API_KEY ?? "",
@@ -75,6 +78,11 @@ let cached: AppSettings | null = null;
 export function settings(): AppSettings {
   if (!cached) cached = loadSettings();
   return cached;
+}
+
+/** False until the user has picked a project folder (fresh install / new machine). */
+export function isRootDirConfigured(): boolean {
+  return Boolean(settings().rootDir);
 }
 
 export function setRootDir(dir: string): void {

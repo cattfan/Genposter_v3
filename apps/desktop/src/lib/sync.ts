@@ -97,11 +97,26 @@ function extOf(att: NcAttachment): string {
   return m ? m[1]!.toLowerCase() : "jpg";
 }
 
+/**
+ * In-memory copy of the last-loaded index, keyed by province. Avoids
+ * re-reading + re-parsing a potentially multi-MB index.json on every sheet
+ * switch / grid load — invalidated by invalidateCacheIndex() once a sync
+ * writes a fresh one.
+ */
+let indexCache: { province: string; index: CacheIndex } | null = null;
+
+export function invalidateCacheIndex(): void {
+  indexCache = null;
+}
+
 export async function loadCacheIndex(province: string): Promise<CacheIndex | null> {
+  if (indexCache?.province === province) return indexCache.index;
   const p = join(paths.cacheDir(province), "index.json");
   if (!(await exists(p))) return null;
   try {
-    return JSON.parse(await readText(p)) as CacheIndex;
+    const index = JSON.parse(await readText(p)) as CacheIndex;
+    indexCache = { province, index };
+    return index;
   } catch {
     return null;
   }
@@ -173,7 +188,19 @@ function rowFingerprint(sheet: string, rec: NcRecord, atts: NcAttachment[]): str
 /** Columns needed to compute the fingerprint (light polling payload). */
 const META_FIELDS = ["Id", "UpdatedAt", "Anh", "Trang_thai", "Tinh"];
 
-async function buildSyncPlans(
+/** Keeps cached rows for sheets whose NocoDB table was not found this run. */
+export function restoreMissingSheetCache(
+  index: CacheIndex,
+  old: CacheIndex | null | undefined,
+  missingSheets: string[],
+): void {
+  for (const sheet of missingSheets) {
+    const oldRows = old?.sheets[sheet];
+    if (oldRows) index.sheets[sheet] = oldRows;
+  }
+}
+
+export async function buildSyncPlans(
   sheetNames: string[],
   tables: Map<string, string>,
   province: string,
@@ -400,10 +427,7 @@ async function doSyncProvince(opts: SyncProgress): Promise<SyncResult> {
   // Keep whatever was already cached for sheets missing from the server
   // instead of silently deleting them — buildSyncPlans skipped these because
   // no matching table was found (typo, not created yet, wrong base).
-  for (const sheet of missingSheets) {
-    const oldRows = old?.sheets[sheet];
-    if (oldRows) index.sheets[sheet] = oldRows;
-  }
+  restoreMissingSheetCache(index, old, missingSheets);
 
   // A fingerprint that can't match the server forces a stale status, so the
   // next poll retries the rows whose downloads failed.
@@ -416,6 +440,10 @@ async function doSyncProvince(opts: SyncProgress): Promise<SyncResult> {
   const idxTmp = `${idxPath}.tmp`;
   await writeText(idxTmp, JSON.stringify(index));
   await rename(idxTmp, idxPath);
+  // Update the in-memory cache with what we just wrote instead of merely
+  // invalidating it — the very next read (e.g. the Data tab refreshing right
+  // after this sync) would otherwise re-read + re-parse the file we just wrote.
+  indexCache = { province, index };
 
   return {
     sheets: plans.length,

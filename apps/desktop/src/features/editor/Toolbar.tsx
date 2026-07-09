@@ -14,6 +14,7 @@ import {
   IconArrowForwardUp,
   IconArrowLeft,
   IconCheck,
+  IconDatabase,
   IconRefresh,
   IconZoomIn,
   IconZoomOut,
@@ -81,6 +82,8 @@ export function Toolbar({
   canvasWidth,
   canvasHeight,
   onResizeCanvas,
+  dataPreviewOn,
+  onToggleDataPreview,
 }: {
   ed: EditorApi;
   name: string;
@@ -93,7 +96,11 @@ export function Toolbar({
   canvasWidth?: number;
   canvasHeight?: number;
   onResizeCanvas?: (w: number, h: number, mode: "scaleContent" | "clipOnly") => void;
+  dataPreviewOn?: boolean;
+  onToggleDataPreview?: () => void;
 }) {
+  const restoring = ed.isRestoring();
+  void ed.tick;
   return (
     <div className="editor-toolbar">
       <Group gap="xs" wrap="nowrap" className="toolbar-left">
@@ -119,12 +126,22 @@ export function Toolbar({
         <SaveIndicator status={saveStatus} onRetry={onRetrySave} />
         <Divider orientation="vertical" />
         <Tooltip label="Hoàn tác (Ctrl+Z)" withArrow>
-          <ActionIcon variant="default" size="md" onClick={ed.undo} disabled={!ed.canUndo}>
+          <ActionIcon
+            variant="default"
+            size="md"
+            onClick={() => void ed.undo()}
+            disabled={!ed.canUndo || restoring}
+          >
             <IconArrowBackUp size={18} />
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Làm lại (Ctrl+Y)" withArrow>
-          <ActionIcon variant="default" size="md" onClick={ed.redo} disabled={!ed.canRedo}>
+          <ActionIcon
+            variant="default"
+            size="md"
+            onClick={() => void ed.redo()}
+            disabled={!ed.canRedo || restoring}
+          >
             <IconArrowForwardUp size={18} />
           </ActionIcon>
         </Tooltip>
@@ -135,6 +152,22 @@ export function Toolbar({
       </Text>
 
       <Group gap="xs" wrap="nowrap" className="toolbar-right">
+        {onToggleDataPreview && (
+          <Tooltip
+            label={dataPreviewOn ? "Tắt xem với dữ liệu" : "Xem với dữ liệu mẫu"}
+            withArrow
+          >
+            <ActionIcon
+              variant={dataPreviewOn ? "filled" : "default"}
+              color={dataPreviewOn ? "riviu" : undefined}
+              size="md"
+              onClick={onToggleDataPreview}
+              aria-label="Xem với dữ liệu"
+            >
+              <IconDatabase size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         {canvasWidth && canvasHeight && onResizeCanvas && (
           <ResizeCanvasPopover
             width={canvasWidth}

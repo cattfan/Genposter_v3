@@ -41,8 +41,31 @@ export function DesignWorkspace() {
   const savedFadeRef = useRef<number | null>(null);
 
   const autoSaveRef = useRef<() => void>(() => {});
+  const sceneChangeDebounceRef = useRef<number | null>(null);
 
-  const ed = useEditor({ onSceneChange: () => autoSaveRef.current() });
+  /** Drop a pending debounced save so it can't fire mid page-switch and write
+   * the previous page's lastExported scene into the newly selected slot. */
+  function cancelPendingSceneSave() {
+    if (sceneChangeDebounceRef.current) {
+      window.clearTimeout(sceneChangeDebounceRef.current);
+      sceneChangeDebounceRef.current = null;
+    }
+  }
+
+  const ed = useEditor({
+    // Debounce the continuous-editing trigger (fires on every property tweak,
+    // e.g. every tick while dragging a slider) so a full export + thumbnail
+    // render + disk write doesn't run on every tick — only once the user
+    // pauses. Deliberate saves (page switch, etc.) call autoSave() directly
+    // and are unaffected, since they must flush immediately before proceeding.
+    onSceneChange: () => {
+      cancelPendingSceneSave();
+      sceneChangeDebounceRef.current = window.setTimeout(() => {
+        sceneChangeDebounceRef.current = null;
+        autoSaveRef.current();
+      }, 600);
+    },
+  });
 
   /**
    * Flush the active page's scene to disk. Overlapping calls coalesce into a
@@ -55,6 +78,7 @@ export function DesignWorkspace() {
    * wrong slot.
    */
   const autoSave = useCallback((): Promise<void> => {
+    cancelPendingSceneSave();
     if (viewRef.current !== "editor" || !setRef.current) return Promise.resolve();
     if (savingRef.current) {
       pendingRef.current = true;
@@ -106,9 +130,22 @@ export function DesignWorkspace() {
   useEffect(
     () => () => {
       if (savedFadeRef.current) window.clearTimeout(savedFadeRef.current);
+      cancelPendingSceneSave();
     },
     [],
   );
+
+  // Best-effort flush when the window is hidden / app is closing — the 600ms
+  // debounce alone would otherwise drop the last edits on quit.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden && viewRef.current === "editor") {
+        void autoSave();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [autoSave]);
 
   /**
    * Serializes page/set navigation so a fast second click can't start a new
@@ -210,6 +247,7 @@ export function DesignWorkspace() {
       });
       setPageIndex(i + 1);
       await loadPageIntoEditor(set, i + 1);
+      await autoSave();
       bump();
     });
   }
@@ -227,6 +265,7 @@ export function DesignWorkspace() {
       if (ni < 0) ni = Math.min(i, set.pages.length - 1);
       setPageIndex(ni);
       await loadPageIntoEditor(set, ni);
+      await autoSave();
       bump();
     });
   }

@@ -12,19 +12,45 @@ import {
   IconEyeOff,
   IconLock,
 } from "@tabler/icons-react";
+import type * as fabric from "fabric";
 
-import { getBool, getId, getStr } from "../../lib/fabric-util.js";
+import { getBool, getId, getStr, isGroupObject } from "../../lib/fabric-util.js";
 import { LayerPreview } from "./layer-preview.js";
 import { isPageFrame } from "./pasteboard.js";
 import type { EditorApi } from "./useEditor.js";
 
+interface LayerRow {
+  obj: fabric.Object;
+  depth: number;
+}
+
+/** Top-to-bottom layer list: top-level objects (reversed), children indented. */
+function buildLayerRows(topLevel: fabric.Object[]): LayerRow[] {
+  const out: LayerRow[] = [];
+  const walk = (objs: fabric.Object[], depth: number) => {
+    for (const o of [...objs].reverse()) {
+      if (isPageFrame(o)) continue;
+      out.push({ obj: o, depth });
+      if (isGroupObject(o)) walk(o.getObjects(), depth + 1);
+    }
+  };
+  walk(topLevel, 0);
+  return out;
+}
+
+function topSelectable(obj: fabric.Object): fabric.Object {
+  let cur = obj;
+  while (cur.group) cur = cur.group as fabric.Object;
+  return cur;
+}
+
 export function LayersPanel({ ed }: { ed: EditorApi }) {
   void ed.tick;
-  const objs = [...ed.getObjects()].reverse().filter((o) => !isPageFrame(o));
+  const rows = buildLayerRows(ed.getObjects());
   const active = ed.getActive();
   const groups = ed.getDataGroups();
 
-  if (!objs.length) {
+  if (!rows.length) {
     return (
       <Text size="sm" c="dimmed" ta="center" py="md">
         Chưa có đối tượng nào.
@@ -35,13 +61,16 @@ export function LayersPanel({ ed }: { ed: EditorApi }) {
   return (
     <ScrollArea.Autosize mah={320}>
       <Stack gap={2}>
-        {objs.map((o) => {
+        {rows.map(({ obj: o, depth }) => {
           const id = getId(o);
-          const label = getStr(o, "gpLabel") || (o.type ?? "obj");
+          const label =
+            getStr(o, "gpLabel") ||
+            (isGroupObject(o) ? "Nhóm layout" : (o.type ?? "obj"));
           const dg = getStr(o, "gpDataGroup");
           const groupLabel = dg ? groups.find((g) => g.id === dg)?.label : "";
           const locked = getBool(o, "gpLocked");
-          const isActive = active === o;
+          const top = topSelectable(o);
+          const isActive = active === o || active === top;
           return (
             <Group
               key={id}
@@ -49,7 +78,8 @@ export function LayersPanel({ ed }: { ed: EditorApi }) {
               wrap="nowrap"
               px="xs"
               py={4}
-              onClick={() => ed.selectObject(o)}
+              pl={8 + depth * 14}
+              onClick={() => ed.selectObject(top)}
               className={`layer-row${isActive ? " layer-row--active" : ""}`}
             >
               <LayerPreview obj={o} />
@@ -74,30 +104,34 @@ export function LayersPanel({ ed }: { ed: EditorApi }) {
                 {label}
               </Text>
               {locked && <IconLock size={14} color="var(--mantine-color-dimmed)" />}
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  ed.selectObject(o);
-                  ed.order("forward");
-                }}
-              >
-                <IconChevronUp size={16} />
-              </ActionIcon>
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  ed.selectObject(o);
-                  ed.order("backward");
-                }}
-              >
-                <IconChevronDown size={16} />
-              </ActionIcon>
+              {depth === 0 && (
+                <>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ed.selectObject(o);
+                      ed.order("forward");
+                    }}
+                  >
+                    <IconChevronUp size={16} />
+                  </ActionIcon>
+                  <ActionIcon
+                    variant="subtle"
+                    color="gray"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      ed.selectObject(o);
+                      ed.order("backward");
+                    }}
+                  >
+                    <IconChevronDown size={16} />
+                  </ActionIcon>
+                </>
+              )}
             </Group>
           );
         })}

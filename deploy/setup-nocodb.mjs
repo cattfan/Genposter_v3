@@ -188,6 +188,13 @@ async function main() {
     console.log("app API token exists");
   }
 
+  // Lock signup immediately after the accounts we need exist — leaving the
+  // public signup endpoint open until someone remembers to run
+  // lock-signup.mjs separately is an unnecessary window for an unauthorized
+  // account to be created on a server that's reachable from the LAN/internet.
+  await api("POST", "/api/v1/app-settings", { invite_only_signup: true }, adminToken);
+  console.log("signup locked (invite_only_signup=true)");
+
   console.log("\n=== RESULT ===");
   console.log(`base_id=${base.id}`);
   console.log(`app_api_token=${appToken.token}`);

@@ -19,9 +19,9 @@ import { IconCheck, IconDeviceFloppy, IconFolderOpen, IconPlugConnected, IconX }
 
 import { testAi, type AiTestResult } from "../../lib/ai.js";
 import { clearMappingCache } from "../../lib/mapping.js";
-import { clearWorkbookCache } from "../../lib/excel.js";
 import { clearPhotoCache } from "../../lib/photos.js";
 import { testServerConnection, type ServerTestResult } from "../../lib/server-api.js";
+import { invalidateCacheIndex } from "../../lib/sync.js";
 import {
   NC_LAN_URL,
   NC_TAILSCALE_URL,
@@ -91,8 +91,10 @@ export function SettingsTab() {
       lanUrl: serverLanUrl.trim() || NC_LAN_URL,
     });
     clearMappingCache();
-    clearWorkbookCache();
     clearPhotoCache();
+    // rootDir may have changed — the in-memory sync index would otherwise
+    // keep serving data cached from the previous project folder.
+    invalidateCacheIndex();
     notifications.show({ color: "teal", message: "Đã lưu cài đặt." });
   }
 

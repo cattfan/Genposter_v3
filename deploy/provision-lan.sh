@@ -13,7 +13,7 @@ chmod +x /opt/genposter/backup.sh
 
 cat > /opt/genposter/.env <<EOF
 PG_PASSWORD=$PG_PASSWORD
-NC_INVITE_ONLY_SIGNUP=false
+NC_INVITE_ONLY_SIGNUP=true
 NC_PUBLIC_URL=$PUBLIC_URL
 EOF
 chmod 600 /opt/genposter/.env

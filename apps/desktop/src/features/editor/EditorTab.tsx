@@ -3,6 +3,10 @@ import type { TemplateSet } from "@genposter/schema";
 
 import { CanvasContextMenu } from "./CanvasContextMenu.js";
 import { ContextBar } from "./ContextBar.js";
+import {
+  loadSamplePreviewContext,
+  renderDesignDataPreview,
+} from "./dataPreview.js";
 import { InspectorDrawer } from "./InspectorDrawer.js";
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip, formatPageToolbarLabel } from "./PageStrip.js";
@@ -59,6 +63,10 @@ export function EditorTab({
   const stageViewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [inspectorOpen, setInspectorOpen] = useState(() => readFlag(INSPECTOR_KEY));
+  const [dataPreviewOn, setDataPreviewOn] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const previewGen = useRef(0);
 
   useEffect(() => {
     try {
@@ -85,6 +93,40 @@ export function EditorTab({
     return () => ro.disconnect();
   }, [ed.ready, set?.width, set?.height, inspectorOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Bound data preview — inject the live canvas scene so unsaved edits show up.
+  useEffect(() => {
+    if (!dataPreviewOn || !set) {
+      setPreviewUrl("");
+      setPreviewLoading(false);
+      return;
+    }
+    const gen = ++previewGen.current;
+    setPreviewLoading(true);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const liveSet: TemplateSet = {
+          ...set,
+          pages: set.pages.map((p, i) =>
+            i === pageIndex ? { ...p, scene: ed.exportScene() } : p,
+          ),
+        };
+        const ctx = await loadSamplePreviewContext();
+        const url = await renderDesignDataPreview(liveSet, pageIndex, ctx.rows, 0);
+        if (cancelled || gen !== previewGen.current) return;
+        setPreviewUrl(url);
+      } catch {
+        if (cancelled || gen !== previewGen.current) return;
+        setPreviewUrl("");
+      } finally {
+        if (!cancelled && gen === previewGen.current) setPreviewLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dataPreviewOn, set, pageIndex, ed.tick, ed]);
+
   const pages = set?.pages ?? [];
   const aspect = set ? set.width / set.height : 0.7;
   const pageLabel = set ? formatPageToolbarLabel(pages, pageIndex) : "";
@@ -103,6 +145,8 @@ export function EditorTab({
         canvasWidth={set?.width}
         canvasHeight={set?.height}
         onResizeCanvas={onResizeCanvas}
+        dataPreviewOn={dataPreviewOn}
+        onToggleDataPreview={() => setDataPreviewOn((v) => !v)}
       />
       <div className={`editor-body${inspectorOpen ? " inspector-open" : ""}`}>
         <LeftPanel ed={ed} />
@@ -121,6 +165,12 @@ export function EditorTab({
               >
                 <canvas ref={ed.canvasElRef} />
                 <SafeZoneOverlay ed={ed} />
+                {dataPreviewOn && previewUrl && (
+                  <img className="data-preview-overlay" src={previewUrl} alt="Xem với dữ liệu" />
+                )}
+                {dataPreviewOn && previewLoading && (
+                  <div className="data-preview-loading">Đang tải preview…</div>
+                )}
               </div>
             </div>
           </div>

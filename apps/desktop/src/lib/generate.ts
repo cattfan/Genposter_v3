@@ -148,6 +148,7 @@ export async function loadCandidates(recipe: Recipe): Promise<DataRow[]> {
 export async function buildGenerate(
   set: TemplateSet,
   recipe: Recipe,
+  opts?: { onAiProgress?: (done: number, total: number) => void },
 ): Promise<GeneratePayload> {
   if (!recipe.data.sheet) throw new Error("Khuôn chưa chọn sheet.");
 
@@ -163,7 +164,7 @@ export async function buildGenerate(
 
   const count = Math.max(1, recipe.randomSetCount || 1);
   const sets = generateSets(plan, candidates, count, recipe.photos.perSet);
-  await applyAiBindings(recipe, sets, plan);
+  await applyAiBindings(recipe, sets, plan, opts?.onAiProgress);
 
   return {
     recipeId: recipe.id,

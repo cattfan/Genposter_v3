@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Box } from "@mantine/core";
+import { open } from "@tauri-apps/plugin-dialog";
+import { Box, Button, Stack, Text, Title } from "@mantine/core";
 import {
+  IconFolderOpen,
   IconLayoutBoardSplit,
   IconPhoto,
   IconSettings,
@@ -8,12 +10,14 @@ import {
 } from "@tabler/icons-react";
 
 import { AppRail } from "./components/AppRail.js";
+import { AppLogo } from "./components/AppLogo.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { DesignWorkspace } from "./features/editor/DesignWorkspace.js";
 import { DataTab } from "./features/data/DataTab.js";
 import { ProduceTab } from "./features/produce/ProduceTab.js";
 import { SettingsTab } from "./features/settings/SettingsTab.js";
 import { hideDataStaleToast, showDataStaleToast } from "./lib/data-stale-toast.js";
+import { isRootDirConfigured, setRootDir } from "./lib/settings.js";
 import { onUpdateStatus, startUpdatePolling } from "./lib/update-poller.js";
 
 type TabId = "design" | "produce" | "data" | "settings";
@@ -32,15 +36,48 @@ function tabStyle(active: boolean): React.CSSProperties {
   return { display: active ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0 };
 }
 
+function RootDirSetup({ onConfigured }: { onConfigured: () => void }) {
+  async function pickProjectRoot() {
+    const dir = await open({ directory: true, multiple: false });
+    if (typeof dir !== "string") return;
+    setRootDir(dir);
+    onConfigured();
+  }
+
+  return (
+    <div className="root-setup">
+      <Stack align="center" gap="lg" maw={480}>
+        <AppLogo variant="banner" />
+        <Box ta="center">
+          <Title order={2}>Chọn thư mục dự án</Title>
+          <Text c="dimmed" mt="sm">
+            Trỏ tới thư mục clone Genposter (chứa templates/, recipes/, output/). Mỗi máy
+            chọn đúng thư mục của mình — dữ liệu quán sẽ đồng bộ từ server sau khi cấu hình.
+          </Text>
+        </Box>
+        <Button
+          size="md"
+          leftSection={<IconFolderOpen size={18} />}
+          onClick={() => void pickProjectRoot()}
+        >
+          Chọn thư mục…
+        </Button>
+      </Stack>
+    </div>
+  );
+}
+
 export function App() {
   const [tab, setTab] = useState<TabId>("design");
   const [dataStale, setDataStale] = useState(false);
+  const [rootReady, setRootReady] = useState(isRootDirConfigured);
 
   useEffect(() => {
+    if (!rootReady) return;
     startUpdatePolling();
     // Only genuine server-side changes count — offline must not raise the toast.
     return onUpdateStatus((st) => setDataStale(st.stale));
-  }, []);
+  }, [rootReady]);
 
   useEffect(() => {
     // Ctrl+wheel / Ctrl+± normally zoom the whole page (browser/WebView2),
@@ -63,7 +100,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!dataStale || tab === "data") {
+    if (!rootReady || !dataStale || tab === "data") {
       hideDataStaleToast();
       return;
     }
@@ -71,7 +108,11 @@ export function App() {
       actionLabel: "Cập nhật",
       onAction: () => setTab("data"),
     });
-  }, [dataStale, tab]);
+  }, [dataStale, tab, rootReady]);
+
+  if (!rootReady) {
+    return <RootDirSetup onConfigured={() => setRootReady(true)} />;
+  }
 
   return (
     <div className="app">

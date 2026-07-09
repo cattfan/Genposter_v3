@@ -86,7 +86,7 @@ export function ResizeCanvasPopover({
             onChange={(v) => setMode(v as "scaleContent" | "clipOnly")}
             data={[
               { value: "scaleContent", label: "Co giãn nội dung" },
-              { value: "clipOnly", label: "Giữ tỉ lệ, cắt lề" },
+              { value: "clipOnly", label: "Giữ vị trí, cắt lề" },
             ]}
           />
           <Button
