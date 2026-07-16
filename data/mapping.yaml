@@ -1,6 +1,13 @@
 # Genposter V3 - data mapping (single source of truth)
-# Read by services/data-api (Python) and apps/desktop.
+# Read by apps/desktop (and deploy import scripts).
 # Keeps Vietnamese display labels while code uses ASCII slugs.
+#
+# Source of truth (2026-07): Google Sheets
+#   https://docs.google.com/spreadsheets/d/1-ECVLtuySSlCO5AShcJle1uP9j8XCA4l/edit
+# NocoDB server was the sync target when online; Sheets is the editorial source.
+#
+# Columns intentionally ignored by the app (QA / ops only):
+#   Người Fix, Người fix, Check lại, STT
 
 database: database/fnb_dalat.xlsx
 
@@ -25,9 +32,9 @@ templates_ref:
   to_do_list:           { label: "TO DO LIST DU LỊCH ĐÀ LẠT" }
   dia_diem_must_go:     { label: "ĐỊA ĐIỂM MUST GO THÁNG 4 ĐÀ LẠT" }
 
-# Excel sheets -> photo group + canonical field map.
+# Excel / Sheets -> photo group + canonical field map.
 # Canonical fields used by templates: name, address, price, price_pp, desc,
-# photo_key, plus sheet-specific extras. Values are the real column headers.
+# photo_key, category, plus sheet-specific extras. Values are the real column headers.
 sheets:
   Quan_an:
     label: "Quán ăn"
@@ -41,6 +48,8 @@ sheets:
       price: Gia
       price_pp: Gia_dau_nguoi
       direction: Huong_di
+      # Sheet header is lowercase on Quan_an; values: Local | Du lịch
+      category: phan_loai
       partner: Doi_tac
       highlight: Mon_an_noi_bat
       desc: Mo_ta
@@ -58,6 +67,8 @@ sheets:
       price_pp: Gia_dau_nguoi
       time: Thoi_diem
       direction: Huong_di
+      # Sheet header is Title Case on Cafe; values: Local | Du lịch
+      category: Phan_loai
       partner: Doi_tac
       highlight: "MÓN ĂN NỔI BẬT"
       desc: Mo_ta

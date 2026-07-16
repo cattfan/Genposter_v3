@@ -1,5 +1,7 @@
 # Genposter V3
 
+> **Agent / máy mới:** đọc [`AGENTS.md`](AGENTS.md) trước — kiến trúc, data, server, setup, quy định cập nhật tài liệu.
+
 Single desktop app (Tauri 2 + React + Vite + TypeScript) that turns an Excel
 database + a local photo library into batches of TikTok-carousel JPGs.
 
