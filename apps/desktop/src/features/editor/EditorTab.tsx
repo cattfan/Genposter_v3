@@ -11,7 +11,6 @@ import { InspectorDrawer } from "./InspectorDrawer.js";
 import { LeftPanel } from "./LeftPanel.js";
 import { PageStrip, formatPageToolbarLabel } from "./PageStrip.js";
 import { RightRail } from "./RightRail.js";
-import { SafeZoneOverlay } from "./SafeZoneOverlay.js";
 import { Toolbar, type SaveStatus } from "./Toolbar.js";
 import { useStagePointer } from "./useStagePointer.js";
 import type { EditorApi } from "./useEditor.js";
@@ -164,7 +163,6 @@ export function EditorTab({
                 }}
               >
                 <canvas ref={ed.canvasElRef} />
-                <SafeZoneOverlay ed={ed} />
                 {dataPreviewOn && previewUrl && (
                   <img className="data-preview-overlay" src={previewUrl} alt="Xem với dữ liệu" />
                 )}

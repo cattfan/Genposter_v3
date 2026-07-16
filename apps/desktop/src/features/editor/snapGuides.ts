@@ -33,24 +33,6 @@ function boundsOf(obj: fabric.FabricObject): Bounds {
   };
 }
 
-function unionRect(objects: Iterable<fabric.FabricObject>): Rect | null {
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-
-  for (const obj of objects) {
-    const b = boundsOf(obj);
-    left = Math.min(left, b.left);
-    top = Math.min(top, b.top);
-    right = Math.max(right, b.right);
-    bottom = Math.max(bottom, b.bottom);
-  }
-
-  if (!Number.isFinite(left)) return null;
-  return { left, top, width: right - left, height: bottom - top };
-}
-
 function movingSet(target: fabric.FabricObject): Set<fabric.FabricObject> {
   if (target.type === "activeselection") {
     return new Set((target as fabric.ActiveSelection).getObjects());
@@ -212,12 +194,13 @@ function drawGuides(
   ctx.restore();
 }
 
-function drawStickyHull(
+/** Outline each clustered object individually — not one union box around all. */
+function drawStickyOutlines(
   ctx: CanvasRenderingContext2D,
   canvas: fabric.Canvas,
-  hull: Rect | null,
+  rects: Rect[],
 ) {
-  if (!hull) return;
+  if (!rects.length) return;
 
   const vpt = canvas.viewportTransform;
   if (!vpt) return;
@@ -226,27 +209,29 @@ function drawStickyHull(
   ctx.save();
   ctx.transform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
   ctx.fillStyle = HULL_FILL;
-  ctx.fillRect(hull.left, hull.top, hull.width, hull.height);
   ctx.strokeStyle = HULL_COLOR;
   ctx.lineWidth = 2 / zoom;
   ctx.setLineDash([]);
-  ctx.strokeRect(hull.left, hull.top, hull.width, hull.height);
+  for (const r of rects) {
+    ctx.fillRect(r.left, r.top, r.width, r.height);
+    ctx.strokeRect(r.left, r.top, r.width, r.height);
+  }
   ctx.restore();
 }
 
-/** Smart alignment guides + edge snap + sticky cluster hull while dragging. */
+/** Smart alignment guides + edge snap + per-object sticky outlines while dragging. */
 export function attachSnapGuides(
   canvas: fabric.Canvas,
   getPageSize: () => { w: number; h: number },
 ): () => void {
   let verticalGuides: number[] = [];
   let horizontalGuides: number[] = [];
-  let stickyHull: Rect | null = null;
+  let stickyRects: Rect[] = [];
 
   const clearOverlay = () => {
     verticalGuides = [];
     horizontalGuides = [];
-    stickyHull = null;
+    stickyRects = [];
   };
 
   const clearAndRender = () => {
@@ -307,13 +292,23 @@ export function attachSnapGuides(
     target.setCoords();
 
     const cluster = buildStickyCluster(canvas, moving);
-    if (cluster.size > 1) stickyHull = unionRect(cluster);
+    if (cluster.size > 1) {
+      stickyRects = [...cluster].map((obj) => {
+        const bb = boundsOf(obj);
+        return {
+          left: bb.left,
+          top: bb.top,
+          width: bb.right - bb.left,
+          height: bb.bottom - bb.top,
+        };
+      });
+    }
   };
 
   const onAfterRender = (opt: { ctx: CanvasRenderingContext2D }) => {
     const { w, h } = getPageSize();
     drawGuides(opt.ctx, canvas, w, h, verticalGuides, horizontalGuides);
-    drawStickyHull(opt.ctx, canvas, stickyHull);
+    drawStickyOutlines(opt.ctx, canvas, stickyRects);
   };
 
   const onEnd = () => {

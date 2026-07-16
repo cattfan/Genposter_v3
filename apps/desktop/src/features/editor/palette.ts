@@ -26,42 +26,6 @@ export const BRAND_COLORS: { label: string; value: string }[] = [
   { label: "Trắng", value: "#ffffff" },
 ];
 
-export interface TextStylePreset {
-  label: string;
-  text: string;
-  fontSize: number;
-  fontWeight?: string;
-  fill?: string;
-  width?: number;
-}
-
-export const TEXT_STYLE_PRESETS: TextStylePreset[] = [
-  {
-    label: "Caption",
-    text: "Mô tả ngắn",
-    fontSize: 28,
-    fontWeight: "400",
-    fill: "#6b6660",
-    width: 520,
-  },
-  {
-    label: "Giá",
-    text: "99.000đ",
-    fontSize: 56,
-    fontWeight: "700",
-    fill: "#ff6600",
-    width: 400,
-  },
-  {
-    label: "Badge HOT",
-    text: "HOT",
-    fontSize: 32,
-    fontWeight: "800",
-    fill: "#ffffff",
-    width: 160,
-  },
-];
-
 export interface SlotDef {
   bind: string;
   label: string;

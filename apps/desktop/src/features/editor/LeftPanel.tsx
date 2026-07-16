@@ -28,7 +28,6 @@ import {
 import type { EditorApi } from "./useEditor.js";
 import { ColorPalettePanel } from "./ColorPalettePanel.js";
 import { filterIcons, ICON_CATEGORIES, type IconCategory } from "./icon-catalog.js";
-import { TEXT_STYLE_PRESETS } from "./palette.js";
 import { pickImageDataUrl } from "./pickImage.js";
 import { pushRecentSticker, readRecentStickers } from "./stickerRecent.js";
 
@@ -128,26 +127,6 @@ export function LeftPanel({ ed }: { ed: EditorApi }) {
                 }}
               >
                 {it.label}
-              </Button>
-            ))}
-            <Text size="xs" fw={600} c="dimmed" mt="sm">
-              Kiểu chữ dựng sẵn
-            </Text>
-            {TEXT_STYLE_PRESETS.map((preset) => (
-              <Button
-                key={preset.label}
-                variant="default"
-                fullWidth
-                h={44}
-                px="sm"
-                justify="flex-start"
-                onClick={() => ed.addTextPreset(preset)}
-                styles={{
-                  inner: { justifyContent: "flex-start", gap: 10 },
-                  label: { fontSize: 13, fontWeight: 600 },
-                }}
-              >
-                {preset.label}
               </Button>
             ))}
           </Stack>
