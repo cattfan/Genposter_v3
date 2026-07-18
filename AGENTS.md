@@ -191,6 +191,7 @@ Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, 
 
 | Ngày | Việc |
 |---|---|
+| 2026-07-18 | HANDOVER.md v2: gói bàn giao vật lý (photos 9.6GB), cảnh báo base LAN chứa data cũ + quy trình wipe/import khi bật lại, troubleshooting, danh sách 25 dòng thiếu ảnh, bảng "Ai giữ gì", định hướng hạ tầng |
 | 2026-07-18 | Thêm [`deploy/HANDOVER.md`](deploy/HANDOVER.md) — hướng dẫn bàn giao vận hành (Local Docker / LAN / Tailscale) |
 | 2026-07-18 | Local Docker: import **full** 634 dòng + 7398 ảnh; sync cache `dalat`; thêm `wipe-table-records.mjs` / `sync-cache.mjs` |
 | 2026-07-18 | Kéo Sheets → `data/database/fnb_dalat.xlsx`; bật NocoDB Local Docker `:8080`; setup base `puzatkuv7t0p8ut`; default app → localhost |
