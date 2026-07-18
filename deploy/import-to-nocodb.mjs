@@ -18,8 +18,8 @@ const req = createRequire(path.join(ROOT, "apps/desktop/package.json"));
 const XLSX = req("xlsx");
 const yaml = req("js-yaml");
 
-const NC = (process.env.NC_URL ?? "http://180.93.114.89:8080").replace(/\/$/, "");
-const BASE_ID = process.env.NC_BASE_ID ?? "prv2zznqur45kz0";
+const NC = (process.env.NC_URL ?? "http://localhost:8080").replace(/\/$/, "");
+const BASE_ID = process.env.NC_BASE_ID ?? "";
 const STATE_FILE = path.join(ROOT, "deploy/import-state.local.json");
 const REPORT_FILE = path.join(ROOT, "deploy/import-report.local.md");
 
@@ -29,6 +29,8 @@ const argLimit = process.argv.includes("--limit")
 const argSheet = process.argv.includes("--sheet")
   ? process.argv[process.argv.indexOf("--sheet") + 1]
   : null;
+/** Skip photo upload — text-only import (fast local Docker bootstrap). */
+const SKIP_PHOTOS = process.argv.includes("--skip-photos");
 
 // ---------- helpers ----------
 function stripDiacritics(s) {
@@ -157,8 +159,19 @@ async function main() {
   const wb = XLSX.readFile(path.join(ROOT, "data", mapping.database));
   const exts = (mapping.image_extensions ?? [".jpg", ".jpeg", ".png", ".webp"]).map((e) => e.toLowerCase());
 
-  const tablesRes = await apiJson("GET", `/api/v2/meta/bases/${BASE_ID}/tables`);
+  let baseId = BASE_ID;
+  if (!baseId) {
+    const bases = await apiJson("GET", `/api/v2/meta/bases`);
+    const title = process.env.GP_BASE_TITLE ?? "Genposter Data";
+    const base = (bases.list ?? []).find((b) => b.title === title);
+    if (!base) throw new Error(`Base not found: ${title} (set NC_BASE_ID)`);
+    baseId = base.id;
+    console.log(`resolved base_id=${baseId}`);
+  }
+
+  const tablesRes = await apiJson("GET", `/api/v2/meta/bases/${baseId}/tables`);
   const tableByTitle = new Map((tablesRes.list ?? []).map((t) => [t.title, t.id]));
+  if (SKIP_PHOTOS) console.log("(--skip-photos: text-only import)");
 
   const state = loadState();
   const misses = [];
@@ -202,7 +215,7 @@ async function main() {
       const photoKey = keyHeader ? r[keyHeader] : "";
       const dispName = nameHeader ? r[nameHeader] : "";
 
-      if (group) {
+      if (group && !SKIP_PHOTOS) {
         const files = matchPhotos(idx, photoKey, dispName);
         if (files) {
           const atts = [];

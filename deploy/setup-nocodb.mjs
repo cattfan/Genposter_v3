@@ -17,7 +17,7 @@ const XLSX = req("xlsx");
 const yaml = req("js-yaml");
 const fs = req("fs");
 
-const NC_URL = (process.env.NC_URL ?? "http://180.93.114.89:8080").replace(/\/$/, "");
+const NC_URL = (process.env.NC_URL ?? "http://localhost:8080").replace(/\/$/, "");
 const ADMIN = {
   email: process.env.GP_ADMIN_EMAIL ?? "admin@genposter.vn",
   password: required("GP_ADMIN_PW"),

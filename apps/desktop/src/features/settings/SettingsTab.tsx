@@ -23,8 +23,7 @@ import { clearPhotoCache } from "../../lib/photos.js";
 import { testServerConnection, type ServerTestResult } from "../../lib/server-api.js";
 import { invalidateCacheIndex } from "../../lib/sync.js";
 import {
-  NC_LAN_URL,
-  NC_TAILSCALE_URL,
+  NC_LOCAL_URL,
   setAi,
   setRootDir,
   setServer,
@@ -41,6 +40,8 @@ export function SettingsTab() {
   const [model, setModel] = useState("");
   const [serverUrl, setServerUrl] = useState("");
   const [serverLanUrl, setServerLanUrl] = useState("");
+  const [serverToken, setServerToken] = useState("");
+  const [serverBaseId, setServerBaseId] = useState("");
   const [testing, setTesting] = useState(false);
   const [testingServer, setTestingServer] = useState(false);
   const [testResult, setTestResult] = useState<AiTestResult | null>(null);
@@ -54,6 +55,8 @@ export function SettingsTab() {
     setModel(s.ai.model);
     setServerUrl(s.server.url);
     setServerLanUrl(s.server.lanUrl);
+    setServerToken(s.server.token);
+    setServerBaseId(s.server.baseId);
   }, []);
 
   async function pickRoot() {
@@ -74,8 +77,10 @@ export function SettingsTab() {
     setServerTest(null);
     const server: ServerSettings = {
       ...settings().server,
-      url: serverUrl.trim() || NC_TAILSCALE_URL,
-      lanUrl: serverLanUrl.trim() || NC_LAN_URL,
+      url: serverUrl.trim() || NC_LOCAL_URL,
+      lanUrl: serverLanUrl.trim() || NC_LOCAL_URL,
+      token: serverToken.trim(),
+      baseId: serverBaseId.trim() || settings().server.baseId,
     };
     const r = await testServerConnection(server);
     setServerTest(r);
@@ -87,8 +92,10 @@ export function SettingsTab() {
     setAi({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), model: model.trim() });
     setServer({
       ...settings().server,
-      url: serverUrl.trim() || NC_TAILSCALE_URL,
-      lanUrl: serverLanUrl.trim() || NC_LAN_URL,
+      url: serverUrl.trim() || NC_LOCAL_URL,
+      lanUrl: serverLanUrl.trim() || NC_LOCAL_URL,
+      token: serverToken.trim(),
+      baseId: serverBaseId.trim() || settings().server.baseId,
     });
     clearMappingCache();
     clearPhotoCache();
@@ -139,22 +146,34 @@ export function SettingsTab() {
             <div>
               <Title order={5}>Server dữ liệu (NocoDB)</Title>
               <Text size="sm" c="dimmed" mt={4}>
-                Mặc định qua Tailscale — dùng được ở nhà, công ty, 4G (cần bật Tailscale). Ở nhà
-                app tự thử LAN nếu Tailscale chưa kết nối.
+                Hiện mặc định Local Docker (`localhost:8080`). Token + base id xem
+                `deploy/CREDENTIALS.local.md`. Khi server LAN/Tailscale bật lại, đổi URL về đó.
               </Text>
             </div>
 
             <TextInput
-              label="URL chính (Tailscale)"
-              placeholder={NC_TAILSCALE_URL}
+              label="URL chính (Local Docker / Tailscale)"
+              placeholder={NC_LOCAL_URL}
               value={serverUrl}
               onChange={(e) => setServerUrl(e.currentTarget.value)}
             />
             <TextInput
               label="URL dự phòng (LAN — tùy chọn)"
-              placeholder={NC_LAN_URL}
+              placeholder={NC_LOCAL_URL}
               value={serverLanUrl}
               onChange={(e) => setServerLanUrl(e.currentTarget.value)}
+            />
+            <TextInput
+              label="Base ID"
+              placeholder="puzatkuv7t0p8ut"
+              value={serverBaseId}
+              onChange={(e) => setServerBaseId(e.currentTarget.value)}
+            />
+            <PasswordInput
+              label="API token (xc-token)"
+              placeholder="dán token từ CREDENTIALS.local.md"
+              value={serverToken}
+              onChange={(e) => setServerToken(e.currentTarget.value)}
             />
 
             {serverTest && (

@@ -1,4 +1,4 @@
-# Genposter V3 — tài liệu cho Agent & máy mới
+ # Genposter V3 — tài liệu cho Agent & máy mới
 
 File này là **nguồn sự thật vận hành** của repo: kiến trúc, data, server, lệnh chạy, setup máy mới. Cursor / Agent trên máy khác đọc file này trước khi đụng code.
 
@@ -109,20 +109,40 @@ Chi tiết vận hành / invite user / backup: [`deploy/README.md`](deploy/READM
 
 | Kênh | URL | Ghi chú |
 |---|---|---|
-| LAN (công ty) | `http://192.168.110.101:8080` | Chỉ cùng mạng |
-| Tailscale (khuyên dùng từ xa) | `http://100.74.131.110:8080` | hostname `genposter-lan` |
-| Public (port-forward) | `http://1.52.185.91:8080` | IP có thể đổi; kém an toàn hơn Tailscale |
+| **Local Docker (đang dùng tạm)** | `http://localhost:8080` | Máy này, `deploy/docker-compose.yml` |
+| LAN (công ty) | `http://192.168.110.101:8080` | Offline (2026-07) |
+| Tailscale | `http://100.74.131.110:8080` | Offline cùng LAN |
+| Public (port-forward) | `http://1.52.185.91:8080` | Offline |
 
-| Mục | Giá trị |
+| Mục | Giá trị (Local Docker) |
 |---|---|
-| `base_id` | `pcq7mr8crku2d9o` |
+| `base_id` | `puzatkuv7t0p8ut` |
 | Tỉnh mặc định | `dalat` |
-| Defaults trong code | [`apps/desktop/src/lib/settings.ts`](apps/desktop/src/lib/settings.ts) (`NC_TAILSCALE_URL`, `NC_LAN_URL`) |
+| Defaults trong code | [`apps/desktop/src/lib/settings.ts`](apps/desktop/src/lib/settings.ts) (`NC_LOCAL_URL`) |
 | Token / mật khẩu | **chỉ** `deploy/CREDENTIALS.local.md` (local, không commit) |
 
-**Trạng thái (2026-07-16):** server **ĐANG TẮT / offline** — LAN, Tailscale và public đều timeout; Tailscale CLI báo `genposter-lan` offline ~2 ngày. App vẫn dùng được với cache cũ nếu máy đã sync trước đó. Khi bật lại: sync tab Dữ liệu; nếu có cột mới trên Sheets thì chạy lại import rồi sync.
+**Trạng thái (2026-07-18):** đang chạy **Local Docker** trên máy dev. Sheets đã tải vào `data/database/fnb_dalat.xlsx` và import text (~634 dòng `Da_duyet`, `--skip-photos`). Ảnh vẫn lấy từ `data/photos/` khi generate nếu cache chưa có attachment. LAN/Tailscale vẫn tắt.
 
-SSH (khi online): `riviu@192.168.110.101` hoặc `riviu@100.74.131.110` — mật khẩu / key trong CREDENTIALS.local.md. Stack Docker: `/opt/genposter` trên server.
+### Local Docker — lệnh nhanh
+
+```powershell
+cd deploy
+docker compose --env-file .env up -d          # bật
+docker compose --env-file .env ps             # trạng thái
+docker compose --env-file .env down           # tắt (giữ volume)
+```
+
+Setup / import lại (khi cần):
+
+```powershell
+$env:NC_URL="http://localhost:8080"
+$env:GP_ADMIN_PW="..."   # xem CREDENTIALS.local.md
+node deploy/setup-nocodb.mjs
+$env:NC_BASE_ID="puzatkuv7t0p8ut"
+node deploy/import-to-nocodb.mjs --skip-photos
+```
+
+App: tab Cài đặt → URL `http://localhost:8080` + base id + token từ CREDENTIALS → Lưu → tab Dữ liệu → Sync.
 
 Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, `create-team-user.mjs`, `setup-nocodb.mjs`, `lock-signup.mjs`.
 
@@ -165,6 +185,7 @@ Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, 
 
 | Ngày | Việc |
 |---|---|
+| 2026-07-18 | Kéo Sheets → `data/database/fnb_dalat.xlsx`; bật NocoDB Local Docker `:8080`; setup base `puzatkuv7t0p8ut`; import text 634 dòng; default app → localhost |
 | 2026-07-16 | Review Google Sheets: thêm `category` ← `phan_loai`/`Phan_loai` vào mapping; server ghi **đang tắt**; tạo `AGENTS.md` |
 | 2026-07-09 | Harden editor (autosave debounce, undo queue, clipOnly, design data-preview); khóa signup provision; first-run rootDir |
 | 2026-07-03 | Tailscale `100.74.131.110`; docs PORT-FORWARD |

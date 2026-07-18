@@ -17,6 +17,8 @@ export interface ServerSettings {
   province: string;
 }
 
+/** Local Docker stack (temporary while LAN/Tailscale server is offline). */
+export const NC_LOCAL_URL = "http://localhost:8080";
 export const NC_TAILSCALE_URL = "http://100.74.131.110:8080";
 export const NC_LAN_URL = "http://192.168.110.101:8080";
 
@@ -40,10 +42,12 @@ const DEFAULTS: AppSettings = {
     model: import.meta.env.VITE_AI_MODEL ?? "gpt-4o-mini",
   },
   server: {
-    url: import.meta.env.VITE_NC_URL ?? NC_TAILSCALE_URL,
-    lanUrl: import.meta.env.VITE_NC_LAN_URL ?? NC_LAN_URL,
+    // Default to local Docker while the company LAN server is offline.
+    // Token stays empty — paste from deploy/CREDENTIALS.local.md (Local Docker).
+    url: import.meta.env.VITE_NC_URL ?? NC_LOCAL_URL,
+    lanUrl: import.meta.env.VITE_NC_LAN_URL ?? NC_LOCAL_URL,
     token: import.meta.env.VITE_NC_TOKEN ?? "",
-    baseId: import.meta.env.VITE_NC_BASE_ID ?? "pcq7mr8crku2d9o",
+    baseId: import.meta.env.VITE_NC_BASE_ID ?? "puzatkuv7t0p8ut",
     province: import.meta.env.VITE_NC_PROVINCE ?? "dalat",
   },
 };
