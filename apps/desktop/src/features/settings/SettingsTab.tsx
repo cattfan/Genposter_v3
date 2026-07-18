@@ -182,7 +182,13 @@ export function SettingsTab() {
                 icon={serverTest.ok ? <IconCheck size={18} /> : <IconX size={18} />}
                 title={
                   serverTest.ok
-                    ? `Kết nối OK qua ${serverTest.via === "lan" ? "LAN" : "Tailscale"} (${serverTest.ms} ms)`
+                    ? `Kết nối OK qua ${
+                        serverTest.via === "local"
+                          ? "Local Docker"
+                          : serverTest.via === "lan"
+                            ? "LAN"
+                            : "Tailscale"
+                      } (${serverTest.ms} ms)`
                     : `Không kết nối được (${serverTest.ms} ms)`
                 }
               >

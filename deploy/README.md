@@ -1,5 +1,7 @@
 # Genposter Data Server
 
+> **Bàn giao / tiếp quản:** đọc [`deploy/HANDOVER.md`](HANDOVER.md) (setup máy mới, Local Docker vs LAN vs Tailscale, checklist ngày 1). Trạng thái ngắn: [`AGENTS.md`](../AGENTS.md).
+
 Máy chủ dữ liệu cho đội nhập liệu: NocoDB (giao diện bảng tính) + PostgreSQL,
 chạy Docker trên Ubuntu 24.04.
 

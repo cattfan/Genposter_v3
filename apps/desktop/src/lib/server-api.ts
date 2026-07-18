@@ -78,12 +78,30 @@ export async function resolveBaseUrl(s: ServerSettings = cfg()): Promise<string>
   return primary;
 }
 
+export type ServerVia = "local" | "lan" | "tailscale" | "none";
+
 export interface ServerTestResult {
   ok: boolean;
   url: string;
   ms: number;
-  via: "tailscale" | "lan" | "none";
+  via: ServerVia;
   error?: string;
+}
+
+/** Classify which channel answered — localhost must not be labeled Tailscale. */
+export function connectionVia(url: string, s: ServerSettings): ServerVia {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return "local";
+  } catch {
+    /* ignore bad URL */
+  }
+  const primary = normUrl(s.url);
+  const lan = normUrl(s.lanUrl);
+  if (lan && url === lan && url !== primary) return "lan";
+  if (url === primary) return "tailscale";
+  if (lan && url === lan) return "lan";
+  return "none";
 }
 
 /** Test server reachability (uses the same URL resolution as sync). */
@@ -92,20 +110,18 @@ export async function testServerConnection(s: ServerSettings = cfg()): Promise<S
   resolvedCache = null;
   const url = await resolveBaseUrl(s);
   const ms = Math.round(performance.now() - t0);
-  const primary = normUrl(s.url);
-  const lan = normUrl(s.lanUrl);
-  const via = url === lan && url !== primary ? "lan" : url === primary ? "tailscale" : "none";
+  const via = connectionVia(url, s);
 
   if (await pingHealth(url, s.token)) {
-    return { ok: true, url, ms, via: via === "none" ? "tailscale" : via };
+    return { ok: true, url, ms, via };
   }
 
   return {
     ok: false,
-    url: primary,
+    url: normUrl(s.url),
     ms,
     via: "none",
-    error: "Không kết nối được (bật Tailscale hoặc kiểm tra mạng LAN).",
+    error: "Không kết nối được (Local Docker / Tailscale / LAN).",
   };
 }
 

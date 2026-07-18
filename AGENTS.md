@@ -107,6 +107,8 @@ Filter publish: chỉ dòng `Trang_thai = Da_duyet` và `Tinh = dalat` (mặc đ
 
 Chi tiết vận hành / invite user / backup: [`deploy/README.md`](deploy/README.md), [`deploy/TAILSCALE.md`](deploy/TAILSCALE.md), [`deploy/PORT-FORWARD.md`](deploy/PORT-FORWARD.md).
 
+**Bàn giao người mới:** [`deploy/HANDOVER.md`](deploy/HANDOVER.md) — checklist setup, ba môi trường server, Local Docker / LAN / Tailscale, bí mật & ngày 1.
+
 | Kênh | URL | Ghi chú |
 |---|---|---|
 | **Local Docker (đang dùng tạm)** | `http://localhost:8080` | Máy này, `deploy/docker-compose.yml` |
@@ -121,7 +123,7 @@ Chi tiết vận hành / invite user / backup: [`deploy/README.md`](deploy/READM
 | Defaults trong code | [`apps/desktop/src/lib/settings.ts`](apps/desktop/src/lib/settings.ts) (`NC_LOCAL_URL`) |
 | Token / mật khẩu | **chỉ** `deploy/CREDENTIALS.local.md` (local, không commit) |
 
-**Trạng thái (2026-07-18):** đang chạy **Local Docker** trên máy dev. Sheets đã tải vào `data/database/fnb_dalat.xlsx` và import text (~634 dòng `Da_duyet`, `--skip-photos`). Ảnh vẫn lấy từ `data/photos/` khi generate nếu cache chưa có attachment. LAN/Tailscale vẫn tắt.
+**Trạng thái (2026-07-18):** đang chạy **Local Docker** trên máy dev. Sheets → NocoDB **full** (634 dòng `Da_duyet` + **7398** ảnh đính kèm; 25 dòng không khớp folder ảnh). Cache app `data/cache/dalat/` đã sync cùng ngày. LAN/Tailscale vẫn tắt.
 
 ### Local Docker — lệnh nhanh
 
@@ -132,19 +134,23 @@ docker compose --env-file .env ps             # trạng thái
 docker compose --env-file .env down           # tắt (giữ volume)
 ```
 
-Setup / import lại (khi cần):
+Import full (text + ảnh) rồi sync cache:
 
 ```powershell
 $env:NC_URL="http://localhost:8080"
-$env:GP_ADMIN_PW="..."   # xem CREDENTIALS.local.md
-node deploy/setup-nocodb.mjs
 $env:NC_BASE_ID="puzatkuv7t0p8ut"
-node deploy/import-to-nocodb.mjs --skip-photos
+$env:GP_ADMIN_EMAIL="admin@genposter.vn"
+$env:GP_ADMIN_PW="..."   # xem CREDENTIALS.local.md
+node deploy/wipe-table-records.mjs            # xóa record cũ (giữ schema)
+Remove-Item deploy/import-state.local.json -ErrorAction SilentlyContinue
+node deploy/import-to-nocodb.mjs              # full — không --skip-photos
+$env:NC_TOKEN="..."                           # app xc-token
+node deploy/sync-cache.mjs                    # → data/cache/dalat/
 ```
 
-App: tab Cài đặt → URL `http://localhost:8080` + base id + token từ CREDENTIALS → Lưu → tab Dữ liệu → Sync.
+App: tab Cài đặt → URL `http://localhost:8080` + base id + token từ CREDENTIALS → Lưu → tab Dữ liệu → Sync (hoặc dùng `sync-cache.mjs` ở trên).
 
-Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, `create-team-user.mjs`, `setup-nocodb.mjs`, `lock-signup.mjs`.
+Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, `wipe-table-records.mjs`, `sync-cache.mjs`, `create-team-user.mjs`, `setup-nocodb.mjs`, `lock-signup.mjs`.
 
 ---
 
@@ -185,7 +191,9 @@ Scripts hữu ích trong `deploy/`: `check-server.mjs`, `import-to-nocodb.mjs`, 
 
 | Ngày | Việc |
 |---|---|
-| 2026-07-18 | Kéo Sheets → `data/database/fnb_dalat.xlsx`; bật NocoDB Local Docker `:8080`; setup base `puzatkuv7t0p8ut`; import text 634 dòng; default app → localhost |
+| 2026-07-18 | Thêm [`deploy/HANDOVER.md`](deploy/HANDOVER.md) — hướng dẫn bàn giao vận hành (Local Docker / LAN / Tailscale) |
+| 2026-07-18 | Local Docker: import **full** 634 dòng + 7398 ảnh; sync cache `dalat`; thêm `wipe-table-records.mjs` / `sync-cache.mjs` |
+| 2026-07-18 | Kéo Sheets → `data/database/fnb_dalat.xlsx`; bật NocoDB Local Docker `:8080`; setup base `puzatkuv7t0p8ut`; default app → localhost |
 | 2026-07-16 | Review Google Sheets: thêm `category` ← `phan_loai`/`Phan_loai` vào mapping; server ghi **đang tắt**; tạo `AGENTS.md` |
 | 2026-07-09 | Harden editor (autosave debounce, undo queue, clipOnly, design data-preview); khóa signup provision; first-run rootDir |
 | 2026-07-03 | Tailscale `100.74.131.110`; docs PORT-FORWARD |
